@@ -5,6 +5,8 @@
   "scripts": {
     "build": "bun run --filter '@bizshuffle-bun/*' build",
     "typecheck": "bun run --filter '@bizshuffle-bun/*' typecheck && bunx tsc -p scripts/tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "test": "bun run --filter '@bizshuffle-bun/protocol' test && bun run --filter '@bizshuffle-bun/domain' test && bun run --filter '@bizshuffle-bun/server-host' test && bun run --filter '@bizshuffle-bun/testing' test",
     "test:contract": "bun run --filter '@bizshuffle-bun/testing' test:contract",
     "test:e2e": "bun run --filter '@bizshuffle-bun/testing' test:e2e",
@@ -21,7 +23,13 @@
     "electrobun": "^1.18.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.22.0",
     "@types/bun": "latest",
-    "typescript": "^6.0.3"
+    "eslint": "^9.22.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.60.0"
   }
 }

@@ -114,7 +114,7 @@ export class SyncModeHandler implements GameModeHandler {
 
     const preventSame = st.prevent_same_game_swap;
     const games = st.games ?? [];
-    let seed = this.initializeSwapSeed();
+    const seed = this.initializeSwapSeed();
     const exclude = new Set([...(player.completed_games ?? [])]);
     if (preventSame && player.game) exclude.add(player.game);
     const picked = selectNextGame(games, exclude, seed);

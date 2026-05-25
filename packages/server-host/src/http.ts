@@ -572,7 +572,7 @@ export function createHttpApp(server: BizShuffleServer): Express {
       return;
     }
     const filename = (req.body as { filename?: string }).filename ?? req.file.originalname;
-    let instanceId = filename.replace(/\.state$/, "");
+    const instanceId = filename.replace(/\.state$/, "");
     const savesDir = join(dataDir, "saves");
     mkdirSync(savesDir, { recursive: true });
     writeFileSync(join(savesDir, filename), req.file.buffer);

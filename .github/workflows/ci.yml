@@ -29,6 +29,9 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Lint
+        run: bun run lint
+
       - name: Build admin UI
         run: bun run build:admin
 
