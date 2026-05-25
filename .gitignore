@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Bun / build outputs
+dist/
+*.tsbuildinfo
+
+# Admin SPA build (bun run build:admin)
+packages/server-host/priv/static/
+
+# Electrobun desktop
+apps/desktop/build/
+apps/desktop/.static-bundle/
+apps/desktop/artifacts/
+
+# Local runtime / smoke
+data/
+data-browser-test/
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+!.vscode/extensions.json
+
+# Test / coverage
+coverage/
+
+# Release artifacts
+release/

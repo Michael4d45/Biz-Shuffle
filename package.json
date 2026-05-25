@@ -1,0 +1,20 @@
+{
+  "name": "bizshuffle-bun-monorepo",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "build": "bun run --filter '@bizshuffle-bun/*' build",
+    "test": "bun run --filter '@bizshuffle-bun/protocol' test && bun run --filter '@bizshuffle-bun/domain' test && bun run --filter '@bizshuffle-bun/server-host' test && bun run --filter '@bizshuffle-bun/testing' test",
+    "test:contract": "bun run --filter '@bizshuffle-bun/testing' test:contract",
+    "test:e2e": "bun run --filter '@bizshuffle-bun/testing' test:e2e",
+    "test:integration": "bun run --filter '@bizshuffle-bun/testing' test:integration",
+    "dev:server": "bun run --filter '@bizshuffle-bun/server-app' dev",
+    "dev:admin": "bun run --filter '@bizshuffle-bun/admin-ui' dev",
+    "dev:desktop": "bun run --filter '@bizshuffle-bun/desktop' dev",
+    "smoke:desktop": "bun run --filter '@bizshuffle-bun/desktop' smoke",
+    "build:admin": "bun run --filter '@bizshuffle-bun/admin-ui' build"
+  },
+  "dependencies": {
+    "electrobun": "^1.18.1"
+  }
+}

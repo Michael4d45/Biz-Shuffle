@@ -1,0 +1,76 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #e2e8f0;
+  background: #0f1724;
+}
+body {
+  margin: 0;
+}
+.layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+.progress-top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 4px;
+  width: 100%;
+  transform-origin: left;
+  background: #34d399;
+  z-index: 50;
+}
+.grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr 2fr;
+}
+.span2 {
+  grid-column: span 2;
+}
+.card {
+  background: #071122;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 1rem;
+}
+.row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.wrap {
+  flex-wrap: wrap;
+}
+.header {
+  justify-content: space-between;
+}
+.ok {
+  color: #4ade80;
+}
+.err {
+  color: #f87171;
+}
+.log {
+  max-height: 200px;
+  overflow: auto;
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+th,
+td {
+  text-align: left;
+  padding: 0.35rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+button,
+input,
+select {
+  margin: 0.15rem 0;
+}

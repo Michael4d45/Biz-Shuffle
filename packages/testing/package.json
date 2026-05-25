@@ -1,0 +1,19 @@
+{
+  "name": "@bizshuffle-bun/testing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "test:contract": "bun test src/protocol",
+    "test:e2e": "bun test src/e2e",
+    "test:integration": "bun test src/integration"
+  },
+  "dependencies": {
+    "@bizshuffle-bun/client-host": "workspace:*",
+    "@bizshuffle-bun/protocol": "workspace:*",
+    "@bizshuffle-bun/server-host": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": { "@types/bun": "latest", "@types/ws": "^8.5.13", "typescript": "^6.0.3" }
+}

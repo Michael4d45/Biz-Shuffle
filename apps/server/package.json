@@ -1,0 +1,15 @@
+{
+  "name": "@bizshuffle-bun/server-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/main.ts",
+    "build": "bun build src/main.ts --outdir dist --target bun",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@bizshuffle-bun/server-host": "workspace:*"
+  },
+  "devDependencies": { "@types/bun": "latest", "typescript": "^6.0.3" }
+}

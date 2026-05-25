@@ -1,0 +1,41 @@
+import type { ElectrobunConfig } from "electrobun";
+
+export default {
+  app: {
+    name: "BizShuffle",
+    identifier: "dev.bizshuffle.desktop",
+    version: "0.1.0",
+    description: "BizShuffle desktop — Host, Join, and embedded admin",
+  },
+  scripts: {
+    preBuild: "scripts/stage-admin-static.ts",
+  },
+  build: {
+    bun: {
+      entrypoint: "src/bun/index.ts",
+    },
+    views: {
+      shell: {
+        entrypoint: "src/views/shell/index.ts",
+      },
+    },
+    copy: {
+      "src/views/shell/index.html": "views/shell/index.html",
+      "src/views/shell/index.css": "views/shell/index.css",
+      ".static-bundle/priv/static": "priv/static",
+      "../../assets/server.lua": "assets/server.lua",
+    },
+    win: {
+      bundleCEF: false,
+    },
+    mac: {
+      bundleCEF: false,
+    },
+    linux: {
+      bundleCEF: false,
+    },
+  },
+  runtime: {
+    exitOnLastWindowClosed: true,
+  },
+} satisfies ElectrobunConfig;

@@ -1,0 +1,25 @@
+{
+  "name": "@bizshuffle-bun/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "bun run scripts/stage-admin-static.ts",
+    "dev": "electrobun dev",
+    "start": "electrobun dev",
+    "smoke": "bun run scripts/stage-admin-static.ts && bun run scripts/smoke-dev.ts",
+    "build": "electrobun build --env=dev",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@bizshuffle-bun/client-host": "workspace:*",
+    "@bizshuffle-bun/protocol": "workspace:*",
+    "@bizshuffle-bun/server-host": "workspace:*",
+    "electrobun": "^1.18.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/three": "^0.165.0",
+    "typescript": "^6.0.3"
+  }
+}

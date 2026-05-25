@@ -1,0 +1,72 @@
+import { useCallback, useEffect, useState } from "react";
+import type { Command, ServerState } from "./types.js";
+import { fetchState, post } from "./api.js";
+
+export function wsUrl(): string {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${location.host}/ws`;
+}
+
+export function useAdmin() {
+  const [state, setState] = useState<ServerState | null>(null);
+  const [log, setLog] = useState<string[]>([]);
+  const [wsConnected, setWsConnected] = useState(false);
+
+  const pushLog = useCallback((msg: string) => {
+    setLog((prev) => [`${new Date().toLocaleTimeString()} ${msg}`, ...prev].slice(0, 200));
+  }, []);
+
+  const refreshState = useCallback(async () => {
+    const s = await fetchState();
+    setState(s);
+    return s;
+  }, []);
+
+  const trigger = useCallback(
+    async (path: string, body?: unknown) => {
+      const res = await post(path, body);
+      if (!res.ok) pushLog(`${path} failed: ${res.status}`);
+      else {
+        pushLog(`${path} ok`);
+        await refreshState();
+      }
+      return res.ok;
+    },
+    [pushLog, refreshState]
+  );
+
+  useEffect(() => {
+    void refreshState().catch((e) => pushLog(String(e)));
+    const interval = setInterval(() => {
+      void refreshState().catch(() => undefined);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [refreshState, pushLog]);
+
+  useEffect(() => {
+    const ws = new WebSocket(wsUrl());
+    ws.onopen = () => {
+      setWsConnected(true);
+      ws.send(
+        JSON.stringify({
+          cmd: "hello_admin",
+          id: String(Date.now()),
+          payload: { name: "admin-ui" },
+        } satisfies Command)
+      );
+      pushLog("admin WS connected");
+    };
+    ws.onmessage = (ev) => {
+      try {
+        const cmd = JSON.parse(ev.data as string) as Command;
+        if (cmd.cmd === "state_update") void refreshState();
+      } catch {
+        /* ignore */
+      }
+    };
+    ws.onclose = () => setWsConnected(false);
+    return () => ws.close();
+  }, [pushLog, refreshState]);
+
+  return { state, setState, log, pushLog, wsConnected, refreshState, trigger };
+}

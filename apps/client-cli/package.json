@@ -1,0 +1,13 @@
+{
+  "name": "@bizshuffle-bun/client-cli-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/main.ts"
+  },
+  "dependencies": {
+    "@bizshuffle-bun/client-host": "workspace:*"
+  },
+  "devDependencies": { "@types/bun": "latest", "typescript": "^6.0.3" }
+}
