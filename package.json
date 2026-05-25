@@ -12,9 +12,15 @@
     "dev:admin": "bun run --filter '@bizshuffle-bun/admin-ui' dev",
     "dev:desktop": "bun run --filter '@bizshuffle-bun/desktop' dev",
     "smoke:desktop": "bun run --filter '@bizshuffle-bun/desktop' smoke",
-    "build:admin": "bun run --filter '@bizshuffle-bun/admin-ui' build"
+    "build:admin": "bun run --filter '@bizshuffle-bun/admin-ui' build",
+    "build:release": "bun run build:admin && bun run --filter @bizshuffle-bun/server-app build:release && bun run --filter @bizshuffle-bun/desktop build:release",
+    "package:server": "bun run scripts/package-server-release.ts"
   },
   "dependencies": {
     "electrobun": "^1.18.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^6.0.3"
   }
 }

@@ -9,6 +9,7 @@
     "start": "electrobun dev",
     "smoke": "bun run scripts/stage-admin-static.ts && bun run scripts/smoke-dev.ts",
     "build": "electrobun build --env=dev",
+    "build:release": "electrobun build --env=stable",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

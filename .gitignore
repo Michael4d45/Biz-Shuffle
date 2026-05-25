@@ -30,3 +30,5 @@ coverage/
 
 # Release artifacts
 release/
+release-staging/
+release-upload/

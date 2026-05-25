@@ -7,6 +7,10 @@
       "dependencies": {
         "electrobun": "^1.18.1",
       },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^6.0.3",
+      },
     },
     "apps/client-cli": {
       "name": "@bizshuffle-bun/client-cli-app",

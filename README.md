@@ -74,6 +74,20 @@ bun test:contract                 # protocol matrix (WebSocket + HTTP)
 bun test:e2e
 ```
 
+## CI / releases
+
+- **CI** (`.github/workflows/ci.yml`) — runs on pushes and PRs to `main`: `bun install`, `build:admin`, `bun test`.
+- **Release** (`.github/workflows/release.yml`) — runs on version tags `v*` (e.g. `v0.2.0`): tests on Linux, then builds and uploads:
+  - `bizshuffle-server-<version>-win-x64.zip` (compiled server + admin static)
+  - Electrobun desktop artifacts from `apps/desktop/artifacts/`
+
+Create a release:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
 Set `BIZHAWK_PATH` for emulator integration tests.
 
 ## Package layout
