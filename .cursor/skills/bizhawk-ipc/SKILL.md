@@ -17,14 +17,14 @@ ClientRuntime → BizhawkIpc (TCP client) → server.lua (TCP server in BizHawk)
 
 ## Key files
 
-| File | Role |
-|------|------|
-| `packages/client-host/src/bizhawk-ipc.ts` | TCP client, command queue, reconnect |
-| `packages/client-host/src/runtime.ts` | Starts IPC, `waitForBizhawkIpc()`, `setBizhawkLaunched()` |
-| `packages/client-host/src/controller.ts` | WS commands → IPC (SAVE, SWAP, PAUSE) |
-| `assets/server.lua` | BizHawk-side listener; copy/sync to client data dir |
-| `apps/desktop/src/bun/emulator-service.ts` | Launch BizHawk after port file exists |
-| `packages/testing/src/fakes/fake-lua-peer.ts` | Test double for Lua |
+| File                                          | Role                                                      |
+| --------------------------------------------- | --------------------------------------------------------- |
+| `packages/client-host/src/bizhawk-ipc.ts`     | TCP client, command queue, reconnect                      |
+| `packages/client-host/src/runtime.ts`         | Starts IPC, `waitForBizhawkIpc()`, `setBizhawkLaunched()` |
+| `packages/client-host/src/controller.ts`      | WS commands → IPC (SAVE, SWAP, PAUSE)                     |
+| `assets/server.lua`                           | BizHawk-side listener; copy/sync to client data dir       |
+| `apps/desktop/src/bun/emulator-service.ts`    | Launch BizHawk after port file exists                     |
+| `packages/testing/src/fakes/fake-lua-peer.ts` | Test double for Lua                                       |
 
 ## Wire protocol
 

@@ -10,13 +10,13 @@ description: Implements HTTP and WebSocket API changes per TSBunShuffle spec and
 1. `docs/SPEC.md` — full product/technical spec (implemented behavior)
 2. `docs/contracts/` — focused contract slices
 
-| Contract | Topic |
-|----------|-------|
-| `http-api.md` | REST surface |
-| `ws-protocol.md` | WS envelope, ack/nack, ping |
-| `persistence.md` | state.json, saves |
-| `lifecycle.md` | session lifecycle |
-| `retry-semantics.md` | client retry behavior |
+| Contract             | Topic                       |
+| -------------------- | --------------------------- |
+| `http-api.md`        | REST surface                |
+| `ws-protocol.md`     | WS envelope, ack/nack, ping |
+| `persistence.md`     | state.json, saves           |
+| `lifecycle.md`       | session lifecycle           |
+| `retry-semantics.md` | client retry behavior       |
 
 ## Change workflow
 
