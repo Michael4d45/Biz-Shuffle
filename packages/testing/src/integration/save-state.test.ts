@@ -1,5 +1,4 @@
-import { existsSync, readFileSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
 import { MIN_SAVE_ZIP } from "../fakes/fake-lua-peer.js";

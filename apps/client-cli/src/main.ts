@@ -45,17 +45,13 @@ async function main(): Promise<void> {
   });
 
   const shutdown = async () => {
-    await runtime.disconnect();
+    runtime.stop();
     process.exit(0);
   };
   process.on("SIGINT", () => void shutdown());
   process.on("SIGTERM", () => void shutdown());
 
-  await runtime.connect({
-    dataDir: args.dataDir,
-    serverUrl: args.server,
-    playerName: args.name,
-  });
+  await runtime.start();
   console.log(`Connected as ${args.name} to ${args.server}`);
 }
 

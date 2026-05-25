@@ -4,6 +4,7 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "build": "bun run --filter '@bizshuffle-bun/*' build",
+    "typecheck": "bun run --filter '@bizshuffle-bun/*' typecheck && bunx tsc -p scripts/tsconfig.json --noEmit",
     "test": "bun run --filter '@bizshuffle-bun/protocol' test && bun run --filter '@bizshuffle-bun/domain' test && bun run --filter '@bizshuffle-bun/server-host' test && bun run --filter '@bizshuffle-bun/testing' test",
     "test:contract": "bun run --filter '@bizshuffle-bun/testing' test:contract",
     "test:e2e": "bun run --filter '@bizshuffle-bun/testing' test:e2e",

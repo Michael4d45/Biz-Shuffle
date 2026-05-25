@@ -153,6 +153,8 @@
       "version": "0.1.0",
       "dependencies": {
         "@bizshuffle-bun/client-host": "workspace:*",
+        "@bizshuffle-bun/domain": "workspace:*",
+        "@bizshuffle-bun/ports": "workspace:*",
         "@bizshuffle-bun/protocol": "workspace:*",
         "@bizshuffle-bun/server-host": "workspace:*",
         "ws": "^8.18.0",

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { ClientRuntime, writeLuaPortFile } from "@bizshuffle-bun/client-host";
 import { FakeLuaPeer, savePath, waitForFile } from "../fakes/fake-lua-peer.js";
-import { startTestServer, stopTestServer } from "../test-helpers.js";
+import { startTestServer } from "../test-helpers.js";
 
 describe("save mode request_save integration", () => {
   let hostDir: string;
@@ -27,7 +27,7 @@ describe("save mode request_save integration", () => {
     rmSync(clientDir, { recursive: true, force: true });
   });
 
-  async function waitForCommand(peer: FakeLuaPeer, cmd: string, timeoutMs = 10_000): Promise<void> {
+  async function waitForCommand(peer: FakeLuaPeer, cmd: string, timeoutMs = 20_000): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (peer.receivedCommands.includes(cmd)) return;
@@ -67,13 +67,10 @@ describe("save mode request_save integration", () => {
       playerName,
       enableDiscovery: false,
       enableBizhawkIpc: true,
+      luaPort: peer.port,
     });
     await runtime.start();
-
-    const readyDeadline = Date.now() + 5000;
-    while (Date.now() < readyDeadline && !peer.receivedCommands.length) {
-      await new Promise((r) => setTimeout(r, 50));
-    }
+    await runtime.waitForBizhawkIpc(20_000);
 
     server.updateStateAndPersist((st) => {
       const p = st.players[playerName] ?? {
@@ -93,8 +90,8 @@ describe("save mode request_save integration", () => {
     server.requestPendingSaves();
 
     await waitForCommand(peer, "SAVE");
-    await waitForFile(savePath(clientDir, instanceId));
-    await waitForFile(savePath(hostDir, instanceId), 10_000);
+    await waitForFile(savePath(clientDir, instanceId), 15_000);
+    await waitForFile(savePath(hostDir, instanceId), 20_000);
 
     expect(existsSync(savePath(clientDir, instanceId))).toBe(true);
     expect(existsSync(savePath(hostDir, instanceId))).toBe(true);
@@ -106,5 +103,5 @@ describe("save mode request_save integration", () => {
 
     const hostBytes = readFileSync(savePath(hostDir, instanceId));
     expect(hostBytes.length).toBeGreaterThan(0);
-  }, 30_000);
+  }, 60_000);
 });

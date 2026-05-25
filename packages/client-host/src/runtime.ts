@@ -25,6 +25,8 @@ export interface ClientRuntimeOptions {
   enableBizhawkIpc?: boolean;
   /** When set, use this port instead of reading/reserving via port file. */
   luaPort?: number;
+  /** When false, IPC waits until setBizhawkLaunched(true) (tests without BizHawk). */
+  bizhawkLaunched?: boolean;
 }
 
 export class ClientRuntime {
@@ -128,6 +130,17 @@ export class ClientRuntime {
     });
 
     await this.ws.start();
+  }
+
+  /** Poll until Lua IPC handshake completes (for tests and Host & Play). */
+  async waitForBizhawkIpc(timeoutMs = 15_000): Promise<void> {
+    if (!this.bipc) return;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (this.bipc.isReady()) return;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    throw new Error("Bizhawk IPC not ready");
   }
 
   setBizhawkLaunched(launched: boolean): void {

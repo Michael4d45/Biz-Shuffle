@@ -26,7 +26,6 @@ export class FakeLuaPeer {
   private socket: Socket | null = null;
   private buffer = "";
   private readonly commands: string[] = [];
-  private readonly host: string;
   readonly port: number;
   instanceId: string;
 
@@ -34,7 +33,6 @@ export class FakeLuaPeer {
     private readonly opts: FakeLuaPeerOptions,
     port: number
   ) {
-    this.host = opts.host ?? "127.0.0.1";
     this.port = port;
     this.instanceId = opts.instanceId ?? "test-instance";
   }

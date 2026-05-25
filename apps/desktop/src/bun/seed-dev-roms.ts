@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { findDataRomsDir } from "@bizshuffle-bun/server-host";
 import { desktopLog } from "./log.js";
