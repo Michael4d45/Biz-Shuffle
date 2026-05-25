@@ -25,14 +25,17 @@ export default {
       ".static-bundle/priv/static": "priv/static",
       "../../assets/server.lua": "assets/server.lua",
     },
-    win: {
-      bundleCEF: false,
-    },
     mac: {
       bundleCEF: false,
+      icons: "icon.iconset",
+    },
+    win: {
+      bundleCEF: false,
+      icon: "icon.iconset/icon_256x256.png",
     },
     linux: {
       bundleCEF: false,
+      icon: "icon.iconset/icon_256x256.png",
     },
   },
   runtime: {
