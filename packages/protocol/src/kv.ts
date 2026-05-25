@@ -21,7 +21,12 @@ export function writeKv(
     const rest = keys.filter((k) => k !== "status").sort();
     return ["status=" + entries.status, ...rest.map((k) => `${k}=${entries[k]}`)].join("\n") + "\n";
   }
-  return keys.sort().map((k) => `${k}=${entries[k]}`).join("\n") + "\n";
+  return (
+    keys
+      .sort()
+      .map((k) => `${k}=${entries[k]}`)
+      .join("\n") + "\n"
+  );
 }
 
 export function migratePluginStatus(meta: Record<string, string>): Record<string, string> {

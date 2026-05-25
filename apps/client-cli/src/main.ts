@@ -23,7 +23,9 @@ function parseArgs(argv: string[]): {
   }
 
   if (!join) {
-    console.error("Usage: bizshuffle-client --join --name <player> [--server <url>] [--data-dir <path>]");
+    console.error(
+      "Usage: bizshuffle-client --join --name <player> [--server <url>] [--data-dir <path>]"
+    );
     process.exit(1);
   }
   if (!name) {

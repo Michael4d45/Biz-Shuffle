@@ -41,7 +41,10 @@ export async function syncCatalogFromRoms(server: BizShuffleServer): Promise<boo
   const st = server.snapshotState();
   const enabled = new Set(st.games ?? []);
   const needsSetup =
-    merged || enabled.size === 0 || files.some((f) => !enabled.has(f)) || (st.main_games?.length ?? 0) === 0;
+    merged ||
+    enabled.size === 0 ||
+    files.some((f) => !enabled.has(f)) ||
+    (st.main_games?.length ?? 0) === 0;
 
   if (!needsSetup) return false;
 

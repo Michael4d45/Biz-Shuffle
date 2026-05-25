@@ -139,7 +139,9 @@ export function createHttpApp(server: BizShuffleServer): Express {
       }
       ok(res);
     } catch (err) {
-      res.status(400).send(`something went wrong ${err instanceof Error ? err.message : String(err)}`);
+      res
+        .status(400)
+        .send(`something went wrong ${err instanceof Error ? err.message : String(err)}`);
     }
   });
 
@@ -194,7 +196,9 @@ export function createHttpApp(server: BizShuffleServer): Express {
     const body = req.body as { player?: string; instance_id?: string; game?: string };
     let gameFile = body.game ?? "";
     if (!gameFile && body.instance_id) {
-      const inst = (server.snapshotState().game_instances ?? []).find((i) => i.id === body.instance_id);
+      const inst = (server.snapshotState().game_instances ?? []).find(
+        (i) => i.id === body.instance_id
+      );
       if (!inst) {
         res.status(400).send("instance not found");
         return;
@@ -206,7 +210,9 @@ export function createHttpApp(server: BizShuffleServer): Express {
       return;
     }
     try {
-      await server.getGameModeHandler().handlePlayerSwap(body.player, gameFile, body.instance_id ?? "");
+      await server
+        .getGameModeHandler()
+        .handlePlayerSwap(body.player, gameFile, body.instance_id ?? "");
       res.status(200).end();
     } catch (err) {
       res.status(400).send(`handler: ${err instanceof Error ? err.message : String(err)}`);
@@ -273,7 +279,12 @@ export function createHttpApp(server: BizShuffleServer): Express {
     }
     const playerName = req.params.player!;
     server.updateStateAndPersist((st) => {
-      const p = st.players[playerName] ?? { name: playerName, has_files: false, connected: false, bizhawk_ready: false };
+      const p = st.players[playerName] ?? {
+        name: playerName,
+        has_files: false,
+        connected: false,
+        bizhawk_ready: false,
+      };
       if (!(p.completed_games ?? []).includes(game)) {
         p.completed_games = [...(p.completed_games ?? []), game];
       }
@@ -299,7 +310,12 @@ export function createHttpApp(server: BizShuffleServer): Express {
     const instance = (req.body as { instance?: string }).instance ?? "";
     const playerName = req.params.player!;
     server.updateStateAndPersist((st) => {
-      const p = st.players[playerName] ?? { name: playerName, has_files: false, connected: false, bizhawk_ready: false };
+      const p = st.players[playerName] ?? {
+        name: playerName,
+        has_files: false,
+        connected: false,
+        bizhawk_ready: false,
+      };
       if (!(p.completed_instances ?? []).includes(instance)) {
         p.completed_instances = [...(p.completed_instances ?? []), instance];
       }
@@ -481,7 +497,15 @@ export function createHttpApp(server: BizShuffleServer): Express {
     server.broadcastToPlayers({
       cmd: "message",
       id: `message-all-${Date.now()}`,
-      payload: { message: b.message, duration: 3, x: 10, y: 10, fontsize: 12, fg: "#FFFFFF", bg: "#000000" },
+      payload: {
+        message: b.message,
+        duration: 3,
+        x: 10,
+        y: 10,
+        fontsize: 12,
+        fg: "#FFFFFF",
+        bg: "#000000",
+      },
     });
     res.json({ result: "ok" });
   });
@@ -494,7 +518,11 @@ export function createHttpApp(server: BizShuffleServer): Express {
       return;
     }
     try {
-      server.sendToPlayer(player, { cmd: "fullscreen_toggle", id: `fs-${Date.now()}`, payload: {} });
+      server.sendToPlayer(player, {
+        cmd: "fullscreen_toggle",
+        id: `fs-${Date.now()}`,
+        payload: {},
+      });
       res.json({ result: "ok" });
     } catch (err) {
       res.status(500).send(String(err));

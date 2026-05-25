@@ -8,7 +8,11 @@ const SESSION_BUTTONS = [
   { label: "Pause", path: "/api/pause" },
   { label: "Do Swap", path: "/api/do_swap" },
   { label: "Auto Swaps", path: "/api/toggle_swaps", toggle: "swap_enabled" as const },
-  { label: "Better Random", path: "/api/toggle_prevent_same_game", toggle: "prevent_same_game_swap" as const },
+  {
+    label: "Better Random",
+    path: "/api/toggle_prevent_same_game",
+    toggle: "prevent_same_game_swap" as const,
+  },
   { label: "Countdown", path: "/api/toggle_countdown", toggle: "countdown_enabled" as const },
   { label: "Clear Saves", path: "/api/clear_saves" },
 ];
@@ -49,7 +53,11 @@ export function App() {
     }
   }, [pushLog]);
 
-  const saveInterval = () => void trigger("/api/interval", { min_interval_secs: intervalMin, max_interval_secs: intervalMax });
+  const saveInterval = () =>
+    void trigger("/api/interval", {
+      min_interval_secs: intervalMin,
+      max_interval_secs: intervalMax,
+    });
   const setMode = (mode: string) => void trigger("/api/mode", { mode });
   const modeSetup = () => void trigger("/api/mode/setup");
   const openRoms = () => void trigger("/api/open_roms_folder");
@@ -89,7 +97,9 @@ export function App() {
         <section className="card">
           <h2>Session</h2>
           <p>
-            <strong className={state?.running ? "ok" : "err"}>{state?.running ? "Running" : "Stopped"}</strong>
+            <strong className={state?.running ? "ok" : "err"}>
+              {state?.running ? "Running" : "Stopped"}
+            </strong>
           </p>
           <p>Next swap: {nextSwapDisplay}</p>
           <label>
@@ -103,7 +113,9 @@ export function App() {
             {SESSION_BUTTONS.map((btn) => (
               <button key={btn.path} type="button" onClick={() => void trigger(btn.path)}>
                 {btn.label}
-                {"toggle" in btn && state && btn.toggle ? ` (${state[btn.toggle] ? "On" : "Off"})` : null}
+                {"toggle" in btn && state && btn.toggle
+                  ? ` (${state[btn.toggle] ? "On" : "Off"})`
+                  : null}
               </button>
             ))}
             <button type="button" onClick={() => void modeSetup()}>
@@ -111,8 +123,16 @@ export function App() {
             </button>
           </div>
           <div className="row">
-            <input type="number" value={intervalMin} onChange={(e) => setIntervalMin(+e.target.value)} />
-            <input type="number" value={intervalMax} onChange={(e) => setIntervalMax(+e.target.value)} />
+            <input
+              type="number"
+              value={intervalMin}
+              onChange={(e) => setIntervalMin(+e.target.value)}
+            />
+            <input
+              type="number"
+              value={intervalMax}
+              onChange={(e) => setIntervalMax(+e.target.value)}
+            />
             <button type="button" onClick={saveInterval}>
               Save interval
             </button>
@@ -122,7 +142,11 @@ export function App() {
         <section className="card span2">
           <h2>Players</h2>
           <div className="row">
-            <input value={newPlayer} onChange={(e) => setNewPlayer(e.target.value)} placeholder="Add player" />
+            <input
+              value={newPlayer}
+              onChange={(e) => setNewPlayer(e.target.value)}
+              placeholder="Add player"
+            />
             <button
               type="button"
               onClick={() => {
@@ -133,7 +157,10 @@ export function App() {
             >
               Add
             </button>
-            <button type="button" onClick={() => void trigger("/api/players/remove_all_completions")}>
+            <button
+              type="button"
+              onClick={() => void trigger("/api/players/remove_all_completions")}
+            >
               Clear all completions
             </button>
           </div>
@@ -159,16 +186,28 @@ export function App() {
                     {p.ping_ms ? ` ${p.ping_ms}ms` : ""}
                   </td>
                   <td className="row wrap">
-                    <button type="button" onClick={() => void trigger("/api/random_swap", { player: name })}>
+                    <button
+                      type="button"
+                      onClick={() => void trigger("/api/random_swap", { player: name })}
+                    >
                       Random
                     </button>
-                    <button type="button" onClick={() => void trigger("/api/remove_player", { player: name })}>
+                    <button
+                      type="button"
+                      onClick={() => void trigger("/api/remove_player", { player: name })}
+                    >
                       Remove
                     </button>
-                    <button type="button" onClick={() => void trigger("/api/fullscreen_toggle", { player: name })}>
+                    <button
+                      type="button"
+                      onClick={() => void trigger("/api/fullscreen_toggle", { player: name })}
+                    >
                       Fullscreen
                     </button>
-                    <button type="button" onClick={() => void trigger("/api/check_player_config", { player: name })}>
+                    <button
+                      type="button"
+                      onClick={() => void trigger("/api/check_player_config", { player: name })}
+                    >
                       Config
                     </button>
                   </td>
@@ -177,7 +216,11 @@ export function App() {
             </tbody>
           </table>
           <div className="row">
-            <input value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="Message" />
+            <input
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              placeholder="Message"
+            />
             <button
               type="button"
               onClick={() =>
@@ -212,12 +255,17 @@ export function App() {
                     />
                     {g.file}
                   </label>
-                  <button type="button" onClick={() => void trigger("/api/swap_all_to_game", { game: g.file })}>
+                  <button
+                    type="button"
+                    onClick={() => void trigger("/api/swap_all_to_game", { game: g.file })}
+                  >
                     Swap all
                   </button>
                   <button
                     type="button"
-                    onClick={() => void trigger(`/api/games/${encodeURIComponent(g.file)}/mark_completed_all`)}
+                    onClick={() =>
+                      void trigger(`/api/games/${encodeURIComponent(g.file)}/mark_completed_all`)
+                    }
                   >
                     Mark done all
                   </button>
@@ -232,7 +280,9 @@ export function App() {
                   <button
                     type="button"
                     onClick={() =>
-                      void trigger(`/api/instances/${encodeURIComponent(inst.id)}/mark_completed_all`)
+                      void trigger(
+                        `/api/instances/${encodeURIComponent(inst.id)}/mark_completed_all`
+                      )
                     }
                   >
                     Mark done all
@@ -270,7 +320,9 @@ export function App() {
                 <button
                   type="button"
                   onClick={() =>
-                    void trigger(`/api/plugins/${encodeURIComponent(name)}/settings`, { status: "enabled" })
+                    void trigger(`/api/plugins/${encodeURIComponent(name)}/settings`, {
+                      status: "enabled",
+                    })
                   }
                 >
                   Enable
@@ -278,7 +330,9 @@ export function App() {
                 <button
                   type="button"
                   onClick={() =>
-                    void trigger(`/api/plugins/${encodeURIComponent(name)}/settings`, { status: "disabled" })
+                    void trigger(`/api/plugins/${encodeURIComponent(name)}/settings`, {
+                      status: "disabled",
+                    })
                   }
                 >
                   Disable
@@ -305,7 +359,11 @@ export function App() {
 
         <section className="card span2">
           <h2>Logs</h2>
-          <div className="log">{log.map((line, i) => <div key={i}>{line}</div>)}</div>
+          <div className="log">
+            {log.map((line, i) => (
+              <div key={i}>{line}</div>
+            ))}
+          </div>
         </section>
       </div>
     </main>

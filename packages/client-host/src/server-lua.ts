@@ -18,9 +18,7 @@ function resolveSource(assetCandidates: string[]): string {
 export function ensureServerLua(dataDir: string, assetCandidates: string[] = []): string {
   const dest = join(dataDir, "server.lua");
   const src = resolveSource(assetCandidates);
-  const needsCopy =
-    !existsSync(dest) ||
-    statSync(src).mtimeMs > statSync(dest).mtimeMs;
+  const needsCopy = !existsSync(dest) || statSync(src).mtimeMs > statSync(dest).mtimeMs;
   if (needsCopy) {
     copyFileSync(src, dest);
   }

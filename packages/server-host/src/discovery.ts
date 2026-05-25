@@ -22,7 +22,10 @@ export class DiscoveryBroadcaster {
     if (this.running) return;
     this.setupSocket();
     this.running = true;
-    this.timer = setInterval(() => void this.broadcast(), this.config.broadcast_interval_sec * 1000);
+    this.timer = setInterval(
+      () => void this.broadcast(),
+      this.config.broadcast_interval_sec * 1000
+    );
     void this.broadcast();
   }
 

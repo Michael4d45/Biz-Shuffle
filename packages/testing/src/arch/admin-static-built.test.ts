@@ -9,10 +9,7 @@ const desktopStageScript = join(repoRoot, "apps", "desktop", "scripts", "stage-a
 
 describe("admin static build artifacts", () => {
   it("server-host/priv/static/index.html exists (bun run build:admin)", () => {
-    expect(
-      existsSync(adminIndex),
-      `Missing ${adminIndex} — run: bun run build:admin`
-    ).toBe(true);
+    expect(existsSync(adminIndex), `Missing ${adminIndex} — run: bun run build:admin`).toBe(true);
   });
 
   it("desktop stage script exists for Electrobun copy", () => {

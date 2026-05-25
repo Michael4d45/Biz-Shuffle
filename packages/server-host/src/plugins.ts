@@ -1,6 +1,19 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
-import { migratePluginStatus, parseKv, writeKv, type Plugin, type PluginStatus } from "@bizshuffle-bun/protocol";
+import {
+  migratePluginStatus,
+  parseKv,
+  writeKv,
+  type Plugin,
+  type PluginStatus,
+} from "@bizshuffle-bun/protocol";
 
 export function loadSettingsKv(path: string): Record<string, string> {
   if (!existsSync(path)) return { status: "disabled" };

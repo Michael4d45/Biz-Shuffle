@@ -39,7 +39,7 @@ The plugin is configured for optimal performance out of the box:
 Mario Lives Tracker: Plugin loaded!
 ```
 
-*Note: The plugin runs silently in the background with minimal console output for performance.*
+_Note: The plugin runs silently in the background with minimal console output for performance._
 
 ## Technical Details
 

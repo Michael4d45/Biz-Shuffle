@@ -136,7 +136,9 @@ export class Persistence {
     const settings = existsSync(settingsKV) ? loadSettingsKv(settingsKV) : { status: "disabled" };
     settings.status = plugin.status;
     saveSettingsKv(settings, settingsKV);
-    const full = structuredClone(loadPluginMetadata(this.pluginsDir, plugin.name) ?? plugin) as MutablePlugin;
+    const full = structuredClone(
+      loadPluginMetadata(this.pluginsDir, plugin.name) ?? plugin
+    ) as MutablePlugin;
     full.status = plugin.status;
     const current = this.opts.session.raw;
     current.plugins ??= {};

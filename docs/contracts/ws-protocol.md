@@ -3,7 +3,7 @@
 ## Envelope
 
 ```json
-{ "cmd": "<name>", "id": "<uuid>", "payload": { } }
+{ "cmd": "<name>", "id": "<uuid>", "payload": {} }
 ```
 
 ## Ack contract

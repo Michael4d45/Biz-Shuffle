@@ -1,4 +1,11 @@
-import { categorizeInstances, setupSaveState, type GameSwapInstance, type MutablePlayer, type MutableServerState, type Player } from "@bizshuffle-bun/protocol";
+import {
+  categorizeInstances,
+  setupSaveState,
+  type GameSwapInstance,
+  type MutablePlayer,
+  type MutableServerState,
+  type Player,
+} from "@bizshuffle-bun/protocol";
 import type { GameModeHandler } from "./types.js";
 import type { BizShuffleServer } from "../server.js";
 
@@ -41,9 +48,7 @@ export class SaveModeHandler implements GameModeHandler {
     const isAvailable = (idx: number) => {
       const inst = gameInstances[idx]!;
       return (
-        !assigned.has(idx) &&
-        !completedInstances.has(inst.id) &&
-        !completedGames.has(inst.game)
+        !assigned.has(idx) && !completedInstances.has(inst.id) && !completedGames.has(inst.game)
       );
     };
 
@@ -102,7 +107,12 @@ export class SaveModeHandler implements GameModeHandler {
           game: playerCurrentGames[pname],
           instance_id: playerCurrentInstances[pname],
         };
-        const idx = this.findAvailableInstanceForPlayer(tempPlayer, shuffled, assignedIndices, preventSame);
+        const idx = this.findAvailableInstanceForPlayer(
+          tempPlayer,
+          shuffled,
+          assignedIndices,
+          preventSame
+        );
         if (idx >= 0) {
           const inst = shuffled[idx]!;
           player.game = inst.game;
@@ -150,7 +160,12 @@ export class SaveModeHandler implements GameModeHandler {
 
     let foundInst: GameSwapInstance | undefined;
     let foundPlayer: Player | undefined;
-    let p: MutablePlayer = { name: player, has_files: false, connected: false, bizhawk_ready: false };
+    let p: MutablePlayer = {
+      name: player,
+      has_files: false,
+      connected: false,
+      bizhawk_ready: false,
+    };
 
     this.server.updateStateAndPersist((st) => {
       foundInst = (st.game_instances ?? []).find((i) => i.id === instanceId);
@@ -195,9 +210,7 @@ export class SaveModeHandler implements GameModeHandler {
       player.instance_id ?? "",
       preventSame
     );
-    const order = preventSame
-      ? [0, 1, 4, 2, 3, 5]
-      : [0, 2, 4, 1, 3, 5];
+    const order = preventSame ? [0, 1, 4, 2, 3, 5] : [0, 2, 4, 1, 3, 5];
     let selectedId = "";
     for (const idx of order) {
       const bucket = buckets[idx]!;
@@ -223,7 +236,9 @@ export class SaveModeHandler implements GameModeHandler {
 
     let current = playerName;
     while (true) {
-      const player = structuredClone(this.server.snapshotState().players[current]!) as MutablePlayer;
+      const player = structuredClone(
+        this.server.snapshotState().players[current]!
+      ) as MutablePlayer;
       if (!player) throw new Error(`player ${current} not found`);
 
       const pick = this.getRandomInstanceForPlayer(player);

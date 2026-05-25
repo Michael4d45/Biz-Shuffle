@@ -12,7 +12,11 @@ export function selectNextGame(
 }
 
 export function generateInstanceId(game: string, existing: Set<string>): string {
-  let base = game.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase().slice(0, 20);
+  let base = game
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .toLowerCase()
+    .slice(0, 20);
   if (!base) base = "instance";
   let id = base;
   let n = 1;

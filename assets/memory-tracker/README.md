@@ -111,4 +111,3 @@ games["game name"] = {
 - `meta.kv` - Plugin metadata and configuration options
 - `settings.kv` - User settings (status, command_type, enabled_types)
 - `README.md` - This documentation file
-

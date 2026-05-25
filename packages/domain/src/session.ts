@@ -58,7 +58,9 @@ export class ServerSession {
   }
 
   getPlayer(name: string): Player {
-    return this.state.players[name] ?? { name, has_files: false, connected: false, bizhawk_ready: false };
+    return (
+      this.state.players[name] ?? { name, has_files: false, connected: false, bizhawk_ready: false }
+    );
   }
 
   setState(next: ServerState): void {

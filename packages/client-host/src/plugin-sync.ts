@@ -31,7 +31,9 @@ export class PluginSyncManager {
           await downloadPluginFiles(this.api.baseUrl, this.pluginsDir, name, this.fetchFn);
           result.downloaded++;
         } catch (err) {
-          result.errors.push(`download ${name}: ${err instanceof Error ? err.message : String(err)}`);
+          result.errors.push(
+            `download ${name}: ${err instanceof Error ? err.message : String(err)}`
+          );
         }
       }
 

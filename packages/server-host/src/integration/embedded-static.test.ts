@@ -5,9 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "bun:test";
 import { BizShuffleServer } from "../server.js";
 
-const repoStatic = resolve(
-  fileURLToPath(new URL("../../priv/static", import.meta.url))
-);
+const repoStatic = resolve(fileURLToPath(new URL("../../priv/static", import.meta.url)));
 
 /** Simulates Electrobun: server-host bundled under app/ without copied priv/static. */
 describe("embedded desktop static layout", () => {

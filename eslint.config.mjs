@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import eslintConfigPrettier from "eslint-config-prettier";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
@@ -97,4 +98,5 @@ export default tseslint.config(
       "react-hooks/exhaustive-deps": "warn",
     },
   },
+  eslintConfigPrettier
 );

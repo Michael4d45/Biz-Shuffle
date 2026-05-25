@@ -133,7 +133,6 @@ export class WsClient {
 export function createAckSender(send: SendFn) {
   return {
     ack: (id: string) => send({ cmd: "ack", id }),
-    nack: (id: string, reason: string) =>
-      send({ cmd: "nack", id, payload: { reason } }),
+    nack: (id: string, reason: string) => send({ cmd: "nack", id, payload: { reason } }),
   };
 }

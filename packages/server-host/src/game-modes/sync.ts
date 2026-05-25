@@ -1,4 +1,10 @@
-import { selectNextGame, setupSyncState, type MutablePlayer, type MutableServerState, type Player } from "@bizshuffle-bun/protocol";
+import {
+  selectNextGame,
+  setupSyncState,
+  type MutablePlayer,
+  type MutableServerState,
+  type Player,
+} from "@bizshuffle-bun/protocol";
 import type { GameModeHandler } from "./types.js";
 import type { BizShuffleServer } from "../server.js";
 
@@ -78,13 +84,27 @@ export class SyncModeHandler implements GameModeHandler {
   getPlayer(player: string): Player {
     const st = this.server.snapshotState();
     for (const pp of Object.values(st.players)) {
-      if (pp.game) return { name: player, game: pp.game, has_files: false, connected: false, bizhawk_ready: false };
+      if (pp.game)
+        return {
+          name: player,
+          game: pp.game,
+          has_files: false,
+          connected: false,
+          bizhawk_ready: false,
+        };
     }
     const games = st.games ?? [];
     if (games.length > 0) {
       const seed = this.initializeSwapSeed();
       const picked = selectNextGame(games, new Set(), seed);
-      if (picked) return { name: player, game: picked.game, has_files: false, connected: false, bizhawk_ready: false };
+      if (picked)
+        return {
+          name: player,
+          game: picked.game,
+          has_files: false,
+          connected: false,
+          bizhawk_ready: false,
+        };
     }
     return { name: player, has_files: false, connected: false, bizhawk_ready: false };
   }
@@ -97,7 +117,12 @@ export class SyncModeHandler implements GameModeHandler {
   }
 
   async handlePlayerSwap(player: string, game: string, _instanceId: string): Promise<void> {
-    let p: MutablePlayer = { name: player, has_files: false, connected: false, bizhawk_ready: false };
+    let p: MutablePlayer = {
+      name: player,
+      has_files: false,
+      connected: false,
+      bizhawk_ready: false,
+    };
     this.server.updateStateAndPersist((st) => {
       p = st.players[player] ?? p;
       p.game = game;

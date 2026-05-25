@@ -35,7 +35,7 @@ describe("ClientRuntime integration", () => {
     await runtime.start();
     expect(runtime.isConnected).toBe(true);
 
-    const st = await fetch(`${server.url}/state.json`).then((r) => r.json()) as {
+    const st = (await fetch(`${server.url}/state.json`).then((r) => r.json())) as {
       state: { players: Record<string, { connected: boolean }> };
     };
     expect(st.state.players["integration-player"]?.connected).toBe(true);

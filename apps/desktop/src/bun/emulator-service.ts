@@ -39,7 +39,11 @@ export class DesktopEmulatorService {
     }
   }
 
-  async launch(dataDir: string, emuPath: string, serverLuaCandidates: string[] = []): Promise<void> {
+  async launch(
+    dataDir: string,
+    emuPath: string,
+    serverLuaCandidates: string[] = []
+  ): Promise<void> {
     if (this.mock) {
       this.healthState = "running";
       this.resolvedPath = emuPath;

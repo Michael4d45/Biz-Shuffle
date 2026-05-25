@@ -2,18 +2,18 @@
 
 **Bun + Electrobun** implementation of BizShuffle with **Effect Schema**, ports/adapters packages, and testable domain boundaries.
 
-| Doc | Purpose |
-|-----|---------|
-| [BUN_ELECTROBUN_REWRITE_PROPOSAL.md](./BUN_ELECTROBUN_REWRITE_PROPOSAL.md) | Architecture and phases |
-| [docs/SPEC.md](./docs/SPEC.md) | Product and technical specification |
+| Doc                                                                        | Purpose                             |
+| -------------------------------------------------------------------------- | ----------------------------------- |
+| [BUN_ELECTROBUN_REWRITE_PROPOSAL.md](./BUN_ELECTROBUN_REWRITE_PROPOSAL.md) | Architecture and phases             |
+| [docs/SPEC.md](./docs/SPEC.md)                                             | Product and technical specification |
 
 ## Artifacts
 
-| Binary | Package |
-|--------|---------|
-| `BizShuffleServer` | `apps/server` |
-| `BizShuffle` (desktop host) | `apps/desktop` |
-| `bizshuffle-client` | `apps/client-cli` |
+| Binary                      | Package           |
+| --------------------------- | ----------------- |
+| `BizShuffleServer`          | `apps/server`     |
+| `BizShuffle` (desktop host) | `apps/desktop`    |
+| `bizshuffle-client`         | `apps/client-cli` |
 
 ## Requirements
 

@@ -1,12 +1,7 @@
 export { ClientRuntime, createClientRuntime, loadClientConfig } from "./runtime.js";
 export type { ClientRuntimeOptions } from "./runtime.js";
 export { ClientApi } from "./api.js";
-export {
-  BizhawkIpc,
-  reserveLuaPort,
-  writeLuaPortFile,
-  readLuaPortFile,
-} from "./bizhawk-ipc.js";
+export { BizhawkIpc, reserveLuaPort, writeLuaPortFile, readLuaPortFile } from "./bizhawk-ipc.js";
 export { Controller } from "./controller.js";
 export { DiscoveryListener } from "./discovery-listener.js";
 export { PluginSyncManager } from "./plugin-sync.js";

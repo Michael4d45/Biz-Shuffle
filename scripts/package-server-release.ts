@@ -17,7 +17,9 @@ const adminStatic = join(root, "packages/server-host/priv/static");
 const serverLua = join(root, "assets/server.lua");
 
 if (!existsSync(serverExe)) {
-  console.error(`Missing ${serverExe} — run: bun run --filter @bizshuffle-bun/server-app build:release`);
+  console.error(
+    `Missing ${serverExe} — run: bun run --filter @bizshuffle-bun/server-app build:release`
+  );
   process.exit(1);
 }
 if (!existsSync(join(adminStatic, "index.html"))) {

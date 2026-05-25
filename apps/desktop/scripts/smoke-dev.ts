@@ -3,7 +3,15 @@
  * Run: bun run smoke (from apps/desktop)
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { BizShuffleServer } from "@bizshuffle-bun/server-host";
@@ -120,12 +128,7 @@ for (const m of REQUIRED_MARKERS) {
 if (missing.length > 0) {
   console.error(`\nSmoke FAILED — missing ${missing.length} marker(s).`);
   console.error("Last 40 lines of combined output:\n");
-  console.error(
-    combined
-      .split("\n")
-      .slice(-40)
-      .join("\n")
-  );
+  console.error(combined.split("\n").slice(-40).join("\n"));
   process.exit(1);
 }
 

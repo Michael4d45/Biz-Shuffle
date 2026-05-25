@@ -16,7 +16,10 @@ export class WsHub {
   private readonly clients = new Map<WebSocket, WsClient>();
   private readonly playerClients = new Map<string, WsClient>();
   private readonly adminClients = new Map<string, WsClient>();
-  private readonly pending = new Map<string, { resolve: (v: string) => void; reject: (e: Error) => void }>();
+  private readonly pending = new Map<
+    string,
+    { resolve: (v: string) => void; reject: (e: Error) => void }
+  >();
 
   constructor(
     private readonly server: BizShuffleServer,
@@ -71,7 +74,9 @@ export class WsHub {
         const cmd = client.sendQueue.shift()!;
         if (cmd.cmd === "ping") {
           const payload =
-            typeof cmd.payload === "string" && cmd.payload ? cmd.payload : `${Date.now() * 1_000_000}`;
+            typeof cmd.payload === "string" && cmd.payload
+              ? cmd.payload
+              : `${Date.now() * 1_000_000}`;
           conn.ping(payload);
         } else {
           conn.send(JSON.stringify(cmd));
@@ -133,10 +138,7 @@ export class WsHub {
       case "nack": {
         const pending = this.pending.get(cmd.id);
         if (pending) {
-          const reason =
-            cmd.cmd === "nack"
-              ? `nack|${JSON.stringify(cmd.payload ?? {})}`
-              : "ack";
+          const reason = cmd.cmd === "nack" ? `nack|${JSON.stringify(cmd.payload ?? {})}` : "ack";
           pending.resolve(reason);
           this.pending.delete(cmd.id);
         }
@@ -250,7 +252,9 @@ export class WsHub {
     if (client.conn.readyState === client.conn.OPEN) {
       if (cmd.cmd === "ping") {
         const payload =
-          typeof cmd.payload === "string" && cmd.payload ? cmd.payload : `${Date.now() * 1_000_000}`;
+          typeof cmd.payload === "string" && cmd.payload
+            ? cmd.payload
+            : `${Date.now() * 1_000_000}`;
         client.conn.ping(payload);
       } else {
         client.conn.send(JSON.stringify(cmd));

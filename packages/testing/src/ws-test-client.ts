@@ -35,11 +35,7 @@ export class WsTestClient {
       payload: { name, bizhawk_ready: bizhawkReady },
     });
     await this.waitFor(
-      (c) =>
-        c.cmd === "games_update" ||
-        c.cmd === "swap" ||
-        c.cmd === "start" ||
-        c.cmd === "pause",
+      (c) => c.cmd === "games_update" || c.cmd === "swap" || c.cmd === "start" || c.cmd === "pause",
       10_000
     );
   }

@@ -18,9 +18,9 @@ describe("resolveAdminStaticDir", () => {
     const fakeModule = join(appDir, "bun", "main.js");
     mkdirSync(join(appDir, "bun"), { recursive: true });
     writeFileSync(fakeModule, "// bundled");
-    expect(() =>
-      resolveAdminStaticDir({ moduleUrl: pathToFileURL(fakeModule).href })
-    ).toThrow(/Admin static files not found/);
+    expect(() => resolveAdminStaticDir({ moduleUrl: pathToFileURL(fakeModule).href })).toThrow(
+      /Admin static files not found/
+    );
     rmSync(appDir, { recursive: true, force: true });
   });
 

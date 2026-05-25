@@ -29,7 +29,12 @@ export function resolveEmuHawkPath(dataDir: string): string {
   if (cfg.bizhawk_path) candidates.push(cfg.bizhawk_path);
 
   const installDir = join(dataDir, "BizHawk");
-  const roots = [installDir, dataDir, join(homedir(), "BizShuffle", "BizHawk"), "C:\\Program Files\\BizHawk"];
+  const roots = [
+    installDir,
+    dataDir,
+    join(homedir(), "BizShuffle", "BizHawk"),
+    "C:\\Program Files\\BizHawk",
+  ];
   for (const root of roots) {
     candidates.push(join(root, "EmuHawk.exe"));
     const nested = findEmuHawkInDir(root);
@@ -89,11 +94,7 @@ function findEmuHawkInDir(dir: string): string | null {
   return null;
 }
 
-function persistBizhawkPath(
-  dataDir: string,
-  cfg: Record<string, string>,
-  absPath: string
-): string {
+function persistBizhawkPath(dataDir: string, cfg: Record<string, string>, absPath: string): string {
   if (cfg.bizhawk_path !== absPath) {
     cfg.bizhawk_path = absPath;
     saveConfig(dataDir, cfg);
@@ -110,17 +111,12 @@ export async function getBizHawkDownloadUrl(): Promise<string> {
     const release = (await res.json()) as GhRelease;
     const suffix = process.platform === "win32" ? "win-x64" : "linux-x64";
     const tag = release.tag_name.replace(/^v/, "");
-    const patterns = [
-      `BizHawk-${tag}-${suffix}.zip`,
-      `BizHawk-${release.tag_name}-${suffix}.zip`,
-    ];
+    const patterns = [`BizHawk-${tag}-${suffix}.zip`, `BizHawk-${release.tag_name}-${suffix}.zip`];
     for (const pattern of patterns) {
       const asset = release.assets.find((a) => a.name === pattern);
       if (asset) return asset.browser_download_url;
     }
-    const loose = release.assets.find(
-      (a) => a.name.includes(suffix) && a.name.endsWith(".zip")
-    );
+    const loose = release.assets.find((a) => a.name.includes(suffix) && a.name.endsWith(".zip"));
     if (loose) return loose.browser_download_url;
   } catch {
     /* fallback below */
@@ -201,7 +197,9 @@ export async function ensureBizHawkReady(
   }
 
   if (!allowInstall) {
-    throw new Error("BizHawk is required. Run the BizShuffle installer or set bizhawk_path in config.json.");
+    throw new Error(
+      "BizHawk is required. Run the BizShuffle installer or set bizhawk_path in config.json."
+    );
   }
 
   const installDir = join(dataDir, "BizHawk");

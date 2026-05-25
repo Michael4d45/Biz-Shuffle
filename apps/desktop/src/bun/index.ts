@@ -59,7 +59,10 @@ async function ensureServerStarted(): Promise<string> {
   seedRomsFromRepoIfEmpty(dir);
   if (!server) {
     const staticDir = desktopAdminStaticDir();
-    desktopLog("bizshuffle-bun", `embedded server staticDir=${staticDir ?? "(resolve from bundle)"}`);
+    desktopLog(
+      "bizshuffle-bun",
+      `embedded server staticDir=${staticDir ?? "(resolve from bundle)"}`
+    );
     server = new BizShuffleServer({
       dataDir: dir,
       host: DEFAULT_HOST,
@@ -163,7 +166,8 @@ function defineShellRpc() {
           }
         },
         join: async (params: unknown) => {
-          const { serverUrl, playerName } = params as ShellRPCSchema["bun"]["requests"]["join"]["params"];
+          const { serverUrl, playerName } =
+            params as ShellRPCSchema["bun"]["requests"]["join"]["params"];
           const dir = dataDir();
           sendStatus("Checking BizHawk…");
           await ensureBizHawkReady(dir, {
@@ -178,7 +182,8 @@ function defineShellRpc() {
           return { ok: true };
         },
         hostAndPlay: async (params: unknown) => {
-          const { playerName } = params as ShellRPCSchema["bun"]["requests"]["hostAndPlay"]["params"];
+          const { playerName } =
+            params as ShellRPCSchema["bun"]["requests"]["hostAndPlay"]["params"];
           try {
             desktopLog("bizshuffle-bun", `RPC hostAndPlay player=${playerName}`);
             sendStatus("Host & Play: starting server…");
@@ -227,7 +232,8 @@ function defineShellRpc() {
         },
         getDataDir: async () => dataDir(),
         openFolder: async (params: unknown) => {
-          const { subpath } = (params ?? {}) as ShellRPCSchema["bun"]["requests"]["openFolder"]["params"];
+          const { subpath } = (params ??
+            {}) as ShellRPCSchema["bun"]["requests"]["openFolder"]["params"];
           const target = subpath ? join(dataDir(), subpath) : dataDir();
           mkdirSync(target, { recursive: true });
           Utils.openPath(target);
@@ -238,7 +244,9 @@ function defineShellRpc() {
           const { line } = payload as ShellRPCSchema["bun"]["messages"]["diag"];
           desktopLog("bizshuffle-shell", line);
         },
-      } as NonNullable<Parameters<typeof defineElectrobunRPC<ShellRPCSchema>>[1]["handlers"]>["messages"],
+      } as NonNullable<
+        Parameters<typeof defineElectrobunRPC<ShellRPCSchema>>[1]["handlers"]
+      >["messages"],
     },
   });
 }
