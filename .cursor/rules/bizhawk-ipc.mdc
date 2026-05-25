@@ -1,0 +1,36 @@
+---
+description: BizHawk Lua IPC — client connects to server.lua over TCP
+globs:
+  - packages/client-host/**/*
+  - apps/desktop/**/*
+  - assets/**/*
+  - packages/testing/src/integration/**/*
+  - packages/testing/src/fakes/**/*
+alwaysApply: false
+---
+
+# BizHawk IPC
+
+## Topology (critical)
+
+- **`server.lua` listens** on localhost; **`BizhawkIpc` is the TCP client** that dials in.
+- Port is written to `{dataDir}/lua_server_port.txt` **before** BizHawk starts (Lua reads it once at boot).
+- Wire format: `HELLO` from Lua, then `CMD|id|COMMAND|...` / `ACK|id` / `NACK|id`.
+
+## Client runtime
+
+- `ClientRuntime` with `enableBizhawkIpc: true` starts `BizhawkIpc` on `start()`.
+- Tests: pass `luaPort` explicitly and `await runtime.waitForBizhawkIpc()` before triggering SAVE/SWAP.
+- `bizhawkLaunched: false` defers reconnect until `setBizhawkLaunched(true)` (Host & Play launch flow).
+
+## Testing without BizHawk
+
+Use `FakeLuaPeer.listen()` from `packages/testing/src/fakes/fake-lua-peer.ts` — mimics Lua TCP server and handles SAVE/SWAP/PAUSE.
+
+## Common failures
+
+| Symptom | Likely cause |
+|---------|----------------|
+| "IPC not ready" | SAVE/SWAP before handshake; missing `waitForBizhawkIpc` in tests |
+| Second Host & Play broken | Port file deleted on stop or BizHawk started before port file exists |
+| No valid save path | Missing `instance_id` on player before save-mode swap |

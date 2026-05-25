@@ -1,0 +1,40 @@
+---
+description: TSBunShuffle monorepo essentials — layout, quality gates, and change discipline
+alwaysApply: true
+---
+
+# TSBunShuffle core
+
+Bun + Electrobun BizShuffle rewrite. Authoritative product spec: `docs/SPEC.md`.
+
+## Package layout
+
+| Package | Role |
+|---------|------|
+| `@bizshuffle-bun/protocol` | Effect Schema types, WS codec, shared constants |
+| `@bizshuffle-bun/domain` | Pure session logic — **no I/O** |
+| `@bizshuffle-bun/ports` | Port interfaces |
+| `@bizshuffle-bun/server-host` | HTTP/WS server, persistence, game modes |
+| `@bizshuffle-bun/client-host` | Player runtime, BizHawk IPC, WS client |
+| `@bizshuffle-bun/admin-ui` | React admin SPA → `server-host/priv/static` |
+| `@bizshuffle-bun/testing` | Contract, e2e, integration, arch tests |
+
+Apps: `apps/server` (headless), `apps/desktop` (Electrobun), `apps/client-cli`.
+
+## Quality gates (run before finishing)
+
+```bash
+bun run typecheck
+bun run lint
+bun run format:check
+bun test
+```
+
+CI runs all of the above plus `build:admin`.
+
+## Change discipline
+
+- Minimize scope; match existing patterns in the touched package.
+- Do not add docs/README unless asked.
+- Do not commit unless the user asks.
+- Prefer extending existing modules over new abstractions.

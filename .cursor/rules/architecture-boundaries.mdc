@@ -1,0 +1,30 @@
+---
+description: Package boundary rules enforced by arch tests
+globs:
+  - apps/**/*
+  - packages/**/*
+alwaysApply: false
+---
+
+# Architecture boundaries
+
+## Domain (`packages/domain`)
+
+- No `node:fs`, `node:net`, or `bun:fs` imports — enforced by `domain-no-io.test.ts`.
+- Session mutations go through `ServerSession`; persistence lives in `server-host`.
+
+## Admin UI (`packages/admin-ui`)
+
+- Must **not** import `@bizshuffle-bun/server-host` or server internals.
+- Talk to the server only via HTTP/WebSocket (`fetch`, admin WS) — enforced by `admin-isolation.test.ts`.
+
+## Protocol vs host
+
+- Shared types and codecs → `@bizshuffle-bun/protocol`.
+- HTTP routes, WS hub, disk I/O → `@bizshuffle-bun/server-host`.
+- Player-side downloads, BizHawk, Lua IPC → `@bizshuffle-bun/client-host`.
+
+## Admin static
+
+- `bun run build:admin` must produce `packages/server-host/priv/static/index.html`.
+- Desktop embeds that path; do not hardcode alternate static locations without updating `static-path.ts`.
