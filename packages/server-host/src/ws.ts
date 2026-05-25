@@ -171,10 +171,21 @@ export class WsHub {
           player.connected = true;
           if (typeof pl?.bizhawk_ready === "boolean") player.bizhawk_ready = pl.bizhawk_ready;
           st.players[name] = player;
-          this.server.broadcastGamesUpdate(player);
-          this.server.sendSwap(player);
-          void this.sendPing(player);
         });
+        const assigned = this.server.currentPlayer(name);
+        if (assigned.game) {
+          this.server.updateStateAndPersist((st) => {
+            const p = st.players[name];
+            if (p && !p.game) {
+              p.game = assigned.game;
+              if (assigned.instance_id) p.instance_id = assigned.instance_id;
+              st.players[name] = p;
+            }
+          });
+        }
+        this.server.broadcastGamesUpdate(this.server.currentPlayer(name));
+        this.server.sendSwap(this.server.currentPlayer(name));
+        void this.sendPing(this.server.currentPlayer(name));
         return;
       }
       case "status_update": {

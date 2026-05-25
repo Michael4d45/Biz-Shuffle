@@ -25,8 +25,10 @@ export function useAdmin() {
   const trigger = useCallback(
     async (path: string, body?: unknown) => {
       const res = await post(path, body);
-      if (!res.ok) pushLog(`${path} failed: ${res.status}`);
-      else {
+      if (!res.ok) {
+        const detail = (await res.text()).trim();
+        pushLog(`${path} failed: ${res.status}${detail ? ` — ${detail}` : ""}`);
+      } else {
         pushLog(`${path} ok`);
         await refreshState();
       }

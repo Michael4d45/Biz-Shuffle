@@ -70,7 +70,7 @@ export class SaveModeHandler implements GameModeHandler {
 
     const st = this.server.snapshotState();
     const instances = st.game_instances ?? [];
-    if (instances.length === 0) throw new Error("no game instances available for swap");
+    if (instances.length === 0) return;
 
     const preventSame = st.prevent_same_game_swap;
     this.server.setPendingAllFiles();

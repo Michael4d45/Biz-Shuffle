@@ -11,6 +11,9 @@ import {
   saveSettingsKv,
   scanPluginsDir,
 } from "./plugins.js";
+import { listRoms, syncCatalogFromRoms } from "./rom-catalog.js";
+import { openPathInFileManager } from "./open-path.js";
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 32 * 1024 * 1024 } });
 
 function ok(res: Response, body: unknown = "ok"): void {
@@ -19,22 +22,6 @@ function ok(res: Response, body: unknown = "ok"): void {
   } else {
     res.json(body);
   }
-}
-
-function listRoms(dataDir: string): string[] {
-  const romsDir = join(dataDir, "roms");
-  if (!existsSync(romsDir)) return [];
-  const files: string[] = [];
-  const walk = (dir: string, base: string) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      const rel = join(base, entry.name);
-      if (entry.isDirectory()) walk(full, rel);
-      else files.push(rel.replace(/\\/g, "/"));
-    }
-  };
-  walk(romsDir, "");
-  return files;
 }
 
 export function createHttpApp(server: BizShuffleServer): Express {
@@ -115,14 +102,18 @@ export function createHttpApp(server: BizShuffleServer): Express {
     ok(res);
   });
 
-  app.post("/api/random_swap", (req, res) => {
+  app.post("/api/random_swap", async (req, res) => {
     const player = (req.body as { player?: string }).player ?? "";
     if (!player) {
       res.status(400).send("missing player");
       return;
     }
-    void server.performRandomSwapForPlayer(player);
-    ok(res);
+    try {
+      await server.performRandomSwapForPlayer(player);
+      ok(res);
+    } catch (err) {
+      res.status(400).send(err instanceof Error ? err.message : String(err));
+    }
   });
 
   app.get("/api/mode", (_req, res) => {
@@ -142,19 +133,10 @@ export function createHttpApp(server: BizShuffleServer): Express {
   });
 
   app.post("/api/mode/setup", async (_req, res) => {
-    const files = listRoms(dataDir);
-    server.updateStateAndPersist((st) => {
-      const games = [...(st.main_games ?? [])];
-      for (const f of files) {
-        if (!games.some((g) => g.file === f || (g.extra_files ?? []).includes(f))) {
-          games.push({ file: f });
-        }
-      }
-      st.main_games = games;
-    });
     try {
-      await server.getGameModeHandler().setupState();
-      server.broadcastGamesUpdate();
+      if (await syncCatalogFromRoms(server)) {
+        server.broadcastGamesUpdate();
+      }
       ok(res);
     } catch (err) {
       res.status(400).send(`something went wrong ${err instanceof Error ? err.message : String(err)}`);
@@ -440,11 +422,14 @@ export function createHttpApp(server: BizShuffleServer): Express {
   });
 
   app.post("/api/open_roms_folder", (_req, res) => {
-    res.json({ status: "ok" });
+    const romsDir = join(dataDir, "roms");
+    openPathInFileManager(romsDir);
+    ok(res);
   });
 
   app.post("/api/open_plugins_folder", (_req, res) => {
-    res.json({ status: "ok" });
+    openPathInFileManager(join(dataDir, "plugins"));
+    ok(res);
   });
 
   app.post("/api/message_player", (req, res) => {

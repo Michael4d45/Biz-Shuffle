@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BrowserWindow, Utils, defineElectrobunRPC } from "electrobun/bun";
-import { BizShuffleServer } from "@bizshuffle-bun/server-host";
+import { BizShuffleServer, syncCatalogFromRoms } from "@bizshuffle-bun/server-host";
 import {
   ClientRuntime,
   DiscoveryListener,
@@ -15,6 +15,7 @@ import type { ShellRPCSchema } from "../shared/rpc.js";
 import { desktopAdminStaticDir } from "./admin-static.js";
 import { DesktopEmulatorService } from "./emulator-service.js";
 import { DESKTOP_LOG_FILE, desktopLog } from "./log.js";
+import { seedRomsFromRepoIfEmpty } from "./seed-dev-roms.js";
 
 const SERVER_LUA_CANDIDATES = [
   join(dirname(fileURLToPath(import.meta.url)), "../../../assets/server.lua"),
@@ -54,17 +55,23 @@ function sendStatus(msg: string): void {
 }
 
 async function ensureServerStarted(): Promise<string> {
+  const dir = dataDir();
+  seedRomsFromRepoIfEmpty(dir);
   if (!server) {
     const staticDir = desktopAdminStaticDir();
     desktopLog("bizshuffle-bun", `embedded server staticDir=${staticDir ?? "(resolve from bundle)"}`);
     server = new BizShuffleServer({
-      dataDir: dataDir(),
+      dataDir: dir,
       host: DEFAULT_HOST,
       port: DEFAULT_PORT,
       ...(staticDir ? { staticDir } : {}),
     });
     await server.start();
     desktopLog("bizshuffle-bun", `embedded server listening at ${server.url}`);
+  }
+  if (await syncCatalogFromRoms(server)) {
+    server.broadcastGamesUpdate();
+    desktopLog("bizshuffle-bun", "embedded server catalog synced from roms/");
   }
   return server.url;
 }

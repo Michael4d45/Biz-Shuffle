@@ -17,6 +17,7 @@ import { WsHub } from "./ws.js";
 import { createDiscoveryBroadcaster, type DiscoveryBroadcaster } from "./discovery.js";
 import { createHttpApp } from "./http.js";
 import { resolveAdminStaticDir } from "./static-path.js";
+import { syncCatalogFromRoms } from "./rom-catalog.js";
 
 export class BizShuffleServer {
   readonly session = new ServerSession();
@@ -70,6 +71,7 @@ export class BizShuffleServer {
 
   async start(): Promise<void> {
     this.persistence.load();
+    await syncCatalogFromRoms(this);
     const app = createHttpApp(this);
     await new Promise<void>((resolve, reject) => {
       const server = app.listen(this.listenPort, this.listenHost, () => {

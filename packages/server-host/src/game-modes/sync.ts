@@ -42,6 +42,7 @@ export class SyncModeHandler implements GameModeHandler {
     const st = this.server.snapshotState();
     const preventSame = st.prevent_same_game_swap;
     const games = st.games ?? [];
+    if (games.length === 0) return;
     const currentGame = this.getCurrentGame();
     let seed = this.initializeSwapSeed();
 
@@ -50,7 +51,7 @@ export class SyncModeHandler implements GameModeHandler {
     let picked = selectNextGame(games, exclude, seed);
     if (!picked) {
       picked = selectNextGame(games, new Set(), seed);
-      if (!picked) throw new Error("no games available for swap");
+      if (!picked) return;
     }
     const game = picked.game;
     seed = picked.nextSeed;
