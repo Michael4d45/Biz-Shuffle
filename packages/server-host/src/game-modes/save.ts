@@ -232,20 +232,22 @@ export class SaveModeHandler implements GameModeHandler {
     if (!selectedId) return null;
     const instance = (st.game_instances ?? []).find((i) => i.id === selectedId);
     if (!instance) return null;
-    const otherPlayer = Object.values(st.players).find((p) => p.instance_id === selectedId);
+    const otherPlayer = Object.values(st.players).find(
+      (p) => p.instance_id === selectedId && p.name !== player.name
+    );
     return { instance, otherPlayer };
   }
 
   async handleRandomSwapForPlayer(playerName: string): Promise<void> {
     if (await this.waitForFileCheck()) return;
 
-    const swapped = new Set<string>();
-    for (const name of Object.keys(this.server.snapshotState().players)) {
-      swapped.add(name);
-    }
+    const playerCount = Object.keys(this.server.snapshotState().players).length;
+    const pending = new Set(
+      Object.keys(this.server.snapshotState().players)
+    );
 
     let current = playerName;
-    while (true) {
+    for (let step = 0; step < playerCount + 1; step++) {
       const player = structuredClone(
         this.server.snapshotState().players[current]!
       ) as MutablePlayer;
@@ -273,9 +275,10 @@ export class SaveModeHandler implements GameModeHandler {
       });
 
       this.server.sendSwap(player);
-      swapped.delete(player.name);
-      if (!pick.otherPlayer || swapped.has(pick.otherPlayer.name)) break;
-      current = pick.otherPlayer.name;
+      pending.delete(player.name);
+      const chain = pick.otherPlayer?.name;
+      if (!chain || !pending.has(chain)) break;
+      current = chain;
     }
   }
 }
