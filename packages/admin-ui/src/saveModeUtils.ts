@@ -1,4 +1,17 @@
-import type { ServerState } from "./types.js";
+import type { GameSwapInstance, ServerState } from "./types.js";
+
+export function instanceFileStateLabel(inst: GameSwapInstance): string {
+  const state = inst.file_state || "none";
+  return inst.pending_player ? `${state}: ${inst.pending_player}` : state;
+}
+
+export function instanceFileStateBadgeVariant(
+  inst: GameSwapInstance
+): "ok" | "warn" | "neutral" {
+  if (inst.file_state === "ready") return "ok";
+  if (inst.file_state === "pending") return "warn";
+  return "neutral";
+}
 
 export function instancePlayerMap(state: ServerState | null): Map<string, string> {
   const map = new Map<string, string>();

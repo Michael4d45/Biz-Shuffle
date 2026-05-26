@@ -16,7 +16,7 @@ Bun + Electrobun BizShuffle rewrite. Authoritative product spec: `docs/SPEC.md`.
 | `@bizshuffle-bun/ports` | Port interfaces |
 | `@bizshuffle-bun/server-host` | HTTP/WS server, persistence, game modes |
 | `@bizshuffle-bun/client-host` | Player runtime, BizHawk IPC, WS client |
-| `@bizshuffle-bun/admin-ui` | React admin SPA → `server-host/priv/static` |
+| `@bizshuffle-bun/admin-ui` | React admin SPA → `server-host/priv/static` (React Compiler; see `admin-ui-react-compiler` rule) |
 | `@bizshuffle-bun/testing` | Contract, e2e, integration, arch tests |
 
 Apps: `apps/server` (headless), `apps/desktop` (Electrobun), `apps/client-cli`.

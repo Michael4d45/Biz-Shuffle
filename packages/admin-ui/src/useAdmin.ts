@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "./components/Toast.js";
 import type { Command, ServerState } from "./types.js";
 import { fetchState, post } from "./api.js";
@@ -14,32 +14,29 @@ export function useAdmin() {
   const [log, setLog] = useState<string[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
 
-  const pushLog = useCallback((msg: string) => {
+  function pushLog(msg: string) {
     setLog((prev) => [`${new Date().toLocaleTimeString()} ${msg}`, ...prev].slice(0, 200));
-  }, []);
+  }
 
-  const refreshState = useCallback(async () => {
+  async function refreshState() {
     const s = await fetchState();
     setState(s);
     return s;
-  }, []);
+  }
 
-  const trigger = useCallback(
-    async (path: string, body?: unknown) => {
-      const res = await post(path, body);
-      if (!res.ok) {
-        const detail = (await res.text()).trim();
-        pushLog(`${path} failed: ${res.status}${detail ? ` — ${detail}` : ""}`);
-        showToast("Action failed", "err");
-      } else {
-        pushLog(`${path} ok`);
-        showToast("Action successful", "ok");
-        await refreshState();
-      }
-      return res.ok;
-    },
-    [pushLog, refreshState, showToast]
-  );
+  async function trigger(path: string, body?: unknown) {
+    const res = await post(path, body);
+    if (!res.ok) {
+      const detail = (await res.text()).trim();
+      pushLog(`${path} failed: ${res.status}${detail ? ` — ${detail}` : ""}`);
+      showToast("Action failed", "err");
+    } else {
+      pushLog(`${path} ok`);
+      showToast("Action successful", "ok");
+      await refreshState();
+    }
+    return res.ok;
+  }
 
   useEffect(() => {
     void refreshState().catch((e) => pushLog(String(e)));
@@ -47,7 +44,7 @@ export function useAdmin() {
       void refreshState().catch(() => undefined);
     }, 5000);
     return () => clearInterval(interval);
-  }, [refreshState, pushLog]);
+  }, []);
 
   useEffect(() => {
     const ws = new WebSocket(wsUrl());
@@ -72,7 +69,7 @@ export function useAdmin() {
     };
     ws.onclose = () => setWsConnected(false);
     return () => ws.close();
-  }, [pushLog, refreshState]);
+  }, []);
 
   return { state, setState, log, pushLog, wsConnected, refreshState, trigger };
 }

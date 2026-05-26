@@ -20,3 +20,8 @@
     scrollbar-color: rgb(51 65 85) transparent;
   }
 }
+
+[draggable="true"] {
+  -webkit-user-select: none;
+  user-select: none;
+}

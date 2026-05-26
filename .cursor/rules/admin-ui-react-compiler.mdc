@@ -1,0 +1,41 @@
+---
+description: Admin UI React Compiler — no manual useMemo/useCallback
+globs: packages/admin-ui/**/*
+alwaysApply: false
+---
+
+# Admin UI — React Compiler
+
+`@bizshuffle-bun/admin-ui` is compiled with **React Compiler** (Vite 8 + `@vitejs/plugin-react` + `reactCompilerPreset` in `packages/admin-ui/vite.config.ts`). ESLint `eslint-plugin-react-compiler` is enabled for this package.
+
+## Do not add manual memoization
+
+- **Do not** use `useCallback` or `useMemo` for “stable references” or to silence re-renders — the compiler handles that.
+- Write **plain functions** inside components and custom hooks.
+
+```tsx
+// ❌ Avoid
+const refresh = useCallback(async () => { ... }, [dep]);
+const value = useMemo(() => compute(state), [state]);
+
+// ✅ Prefer
+async function refresh() { ... }
+const value = compute(state);
+```
+
+## When memoization is still OK
+
+- `useState`, `useReducer`, `useRef`, `useContext` — unchanged.
+- `useMemo` / `useCallback` only if you have a **documented** reason the compiler cannot help (e.g. interop with a library that requires referential identity in deps you control) — rare; ask before adding.
+
+## `useEffect` dependencies
+
+- Do not wrap effect logic in `useCallback` just to satisfy `react-hooks/exhaustive-deps`.
+- Prefer: inline async work in the effect, module-level helpers, or `[]` for intentional mount-only setup (WS connect, polling).
+- Compiler-stabilized handlers passed to children do not need `useCallback`.
+
+## Other admin-ui constraints
+
+- No imports from `@bizshuffle-bun/server-host` (see `admin-isolation` arch test).
+- Match existing patterns: `api.ts` helpers, card components, hooks under `src/hooks/`.
+- After changes: `bun run typecheck`, `bun run lint`, `bun run build:admin`.

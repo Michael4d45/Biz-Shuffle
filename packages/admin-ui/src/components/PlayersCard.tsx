@@ -13,6 +13,7 @@ import type { Player, ServerState } from "../types.js";
 import { useOptionalPlayerDrag } from "../PlayerDragContext.js";
 import { ConfigModal } from "./ConfigModal.js";
 import { MessageComposerModal } from "./MessageComposerModal.js";
+import { DraggablePlayerChip } from "./DraggablePlayerChip.js";
 import { ActionRow, Badge, Button, Card, EmptyState, FieldLabel, Input, Select } from "./ui.js";
 
 type Props = {
@@ -114,14 +115,15 @@ export function PlayersCard({ state, trigger, pushLog, refreshState }: Props) {
                 <li
                   key={name}
                   className="rounded-lg border border-slate-800 bg-slate-950/40 p-3"
-                  draggable={!isSync}
-                  onDragStart={() => dnd?.onDragStart(name)}
-                  onDragEnd={() => dnd?.onDragEnd()}
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-slate-100">{name}</span>
+                        {!isSync && dnd ? (
+                          <DraggablePlayerChip name={name} dnd={dnd} variant="assigned" />
+                        ) : (
+                          <span className="font-medium text-slate-100">{name}</span>
+                        )}
                         <Badge variant={status.variant}>{status.label}</Badge>
                         <Badge variant={p.has_files ? "ok" : "warn"}>
                           {p.has_files ? "Has files" : "Missing files"}

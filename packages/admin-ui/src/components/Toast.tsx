@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { cn } from "./ui.js";
 
 type ToastState = { message: string; variant: "ok" | "err" } | null;
@@ -12,10 +12,10 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<ToastState>(null);
 
-  const showToast = useCallback((message: string, variant: "ok" | "err" = "ok") => {
+  function showToast(message: string, variant: "ok" | "err" = "ok") {
     setToast({ message, variant });
     setTimeout(() => setToast(null), 2000);
-  }, []);
+  }
 
   return (
     <ToastContext.Provider value={{ showToast }}>

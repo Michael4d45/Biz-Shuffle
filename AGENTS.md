@@ -13,6 +13,7 @@ Cursor rules live in [`.cursor/rules/`](.cursor/rules/). Project skills live in 
 | Skill                | Use when                                         |
 | -------------------- | ------------------------------------------------ |
 | `dev-workflow`       | Running dev servers, tests, releases, CI         |
+| `admin-ui`           | Admin panel UI; React Compiler — no useMemo/useCallback by default |
 | `bizhawk-ipc`        | Lua IPC, Host & Play, emulator integration tests |
 | `spec-and-contracts` | HTTP/WS API changes, protocol edits              |
 

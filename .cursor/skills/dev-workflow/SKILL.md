@@ -21,7 +21,7 @@ bun test
 | Goal                            | Command                                                                                                       |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | Headless server + browser admin | `bun run dev:server -- --data-dir ./data --host 127.0.0.1 --port 8080`                                        |
-| Admin UI hot reload             | `bun run dev:admin`                                                                                           |
+| Admin UI hot reload             | `bun run dev:admin` (React Compiler — see `admin-ui` skill)                                                   |
 | Desktop (Electrobun)            | `bun run build:admin && bun run dev:desktop`                                                                  |
 | CLI player                      | `bun run --filter @bizshuffle-bun/client-cli-app dev -- --join --name Player1 --server http://127.0.0.1:8080` |
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { AdminTrigger } from "../adminActions.js";
 import { fetchJson } from "../api.js";
 import type { Plugin } from "../types.js";
@@ -16,27 +16,45 @@ function pluginBadgeVariant(status: string): "ok" | "warn" | "neutral" {
   return "neutral";
 }
 
+async function fetchPluginMap(): Promise<Record<string, Plugin>> {
+  const body = await fetchJson<{ plugins: Record<string, Plugin> }>("/api/plugins");
+  return body.plugins ?? {};
+}
+
 export function PluginsCard({ trigger, pushLog }: Props) {
   const [plugins, setPlugins] = useState<Record<string, Plugin>>({});
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [editName, setEditName] = useState<string | null>(null);
 
-  const loadPlugins = useCallback(async () => {
+  async function loadPlugins() {
     setLoading(true);
     try {
-      const body = await fetchJson<{ plugins: Record<string, Plugin> }>("/api/plugins");
-      setPlugins(body.plugins ?? {});
+      setPlugins(await fetchPluginMap());
     } catch (e) {
       pushLog(String(e));
     } finally {
       setLoading(false);
     }
-  }, [pushLog]);
+  }
 
   useEffect(() => {
-    void loadPlugins();
-  }, [loadPlugins]);
+    let cancelled = false;
+    setLoading(true);
+    void fetchPluginMap()
+      .then((next) => {
+        if (!cancelled) setPlugins(next);
+      })
+      .catch((e) => {
+        if (!cancelled) pushLog(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pushLog]);
 
   const entries = Object.entries(plugins);
 
