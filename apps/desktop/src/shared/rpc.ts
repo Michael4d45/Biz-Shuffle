@@ -7,6 +7,13 @@ export type DiscoveredServerEntry = {
   isHosted: boolean;
 };
 
+/** Persisted shell form fields ({dataDir}/settings.json). */
+export type ShellSettings = {
+  bindHost: string;
+  serverUrl: string;
+  playerName: string;
+};
+
 /** One row in the shell dependencies panel (BizHawk, VC++ runtime, …). */
 export type DependencyUiItem = {
   id: DependencyId;
@@ -53,6 +60,8 @@ export type ShellRPCSchema = {
         params: Record<string, never>;
         response: { hostedUrl: string | null; servers: DiscoveredServerEntry[] };
       };
+      getShellSettings: { params: Record<string, never>; response: ShellSettings };
+      saveShellSettings: { params: Partial<ShellSettings>; response: ShellSettings };
       getDataDir: { params: Record<string, never>; response: string };
       openFolder: { params: { subpath?: string }; response: void };
       getAppInfo: { params: Record<string, never>; response: AppUpdateState };

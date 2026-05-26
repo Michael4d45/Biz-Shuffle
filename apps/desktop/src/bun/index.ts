@@ -31,6 +31,7 @@ import { desktopAdminStaticDir } from "./admin-static.js";
 import { DesktopEmulatorService } from "./emulator-service.js";
 import { DESKTOP_LOG_FILE, desktopLog } from "./log.js";
 import { seedRomsFromRepoIfEmpty } from "./seed-dev-roms.js";
+import { loadShellSettings, saveShellSettings } from "./shell-settings.js";
 
 const SERVER_LUA_CANDIDATES = [
   join(dirname(fileURLToPath(import.meta.url)), "../../../assets/server.lua"),
@@ -360,6 +361,11 @@ function defineShellRpc() {
         discover: async () => {
           const servers = await getDiscoveredServers();
           return { hostedUrl: server?.url ?? null, servers };
+        },
+        getShellSettings: async () => loadShellSettings(dataDir()),
+        saveShellSettings: async (params: unknown) => {
+          const patch = params as ShellRPCSchema["bun"]["requests"]["saveShellSettings"]["params"];
+          return saveShellSettings(dataDir(), patch);
         },
         getDataDir: async () => dataDir(),
         openFolder: async (params: unknown) => {

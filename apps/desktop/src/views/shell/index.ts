@@ -1,5 +1,10 @@
 import { Electroview } from "electrobun/view";
-import type { AppUpdateState, DependenciesState, ShellRPCSchema } from "../../shared/rpc.js";
+import type {
+  AppUpdateState,
+  DependenciesState,
+  ShellRPCSchema,
+  ShellSettings,
+} from "../../shared/rpc.js";
 
 const defaultDepsState: DependenciesState = {
   checking: true,
@@ -53,7 +58,6 @@ slog("view script loaded");
 new Electroview({ rpc });
 slog("Electroview constructed");
 
-const BIND_HOST_STORAGE_KEY = "bizshuffle-bind-host";
 const DEFAULT_BIND_HOST = "127.0.0.1";
 
 let busy = false;
@@ -63,13 +67,8 @@ let playerName = "";
 let bindHost = DEFAULT_BIND_HOST;
 let statusLine = "";
 let discovered: { label: string; url: string; isHosted: boolean }[] = [];
-
-try {
-  const saved = localStorage.getItem(BIND_HOST_STORAGE_KEY);
-  if (saved) bindHost = saved;
-} catch {
-  /* private mode */
-}
+let saveSettingsTimer: ReturnType<typeof setTimeout> | null = null;
+let settingsLoaded = false;
 
 const root = document.getElementById("root");
 if (!root) {
@@ -92,6 +91,47 @@ function captureFormState(): void {
   if (playerNameEl) playerName = playerNameEl.value;
   const bindHostEl = document.getElementById("bind-host") as HTMLInputElement | null;
   if (bindHostEl) bindHost = bindHostEl.value;
+}
+
+function applySettings(settings: ShellSettings): void {
+  bindHost = settings.bindHost || DEFAULT_BIND_HOST;
+  serverUrl = settings.serverUrl || serverUrl;
+  playerName = settings.playerName;
+}
+
+function currentSettingsPatch(): Partial<ShellSettings> {
+  captureFormState();
+  return { bindHost, serverUrl, playerName };
+}
+
+async function persistShellSettings(): Promise<void> {
+  if (!settingsLoaded) return;
+  try {
+    await rpc.request.saveShellSettings(currentSettingsPatch());
+  } catch (e) {
+    slog(`saveShellSettings failed: ${e}`);
+  }
+}
+
+function schedulePersistShellSettings(): void {
+  if (!settingsLoaded) return;
+  if (saveSettingsTimer) clearTimeout(saveSettingsTimer);
+  saveSettingsTimer = setTimeout(() => {
+    saveSettingsTimer = null;
+    void persistShellSettings();
+  }, 400);
+}
+
+async function loadShellSettingsFromDisk(): Promise<void> {
+  try {
+    const settings = await rpc.request.getShellSettings({});
+    applySettings(settings);
+    settingsLoaded = true;
+    render();
+  } catch (e) {
+    slog(`getShellSettings failed: ${e}`);
+    settingsLoaded = true;
+  }
 }
 
 type SavedFocus = { id: string; start: number | null; end: number | null };
@@ -308,11 +348,13 @@ function wirePickServerButtons(): void {
       const input = document.getElementById("server-url") as HTMLInputElement | null;
       if (input) input.value = serverUrl;
       else render();
+      schedulePersistShellSettings();
     });
   });
   document.querySelectorAll(".pick-server-welcome").forEach((btn) => {
     btn.addEventListener("click", () => {
       serverUrl = (btn as HTMLButtonElement).dataset.url ?? serverUrl;
+      schedulePersistShellSettings();
       view = "join";
       render();
     });
@@ -347,9 +389,18 @@ async function refreshDiscovery(): Promise<void> {
 function wireJoinFormInputs(): void {
   document.getElementById("server-url")?.addEventListener("input", (e) => {
     serverUrl = (e.target as HTMLInputElement).value;
+    schedulePersistShellSettings();
   });
   document.getElementById("player-name")?.addEventListener("input", (e) => {
     playerName = (e.target as HTMLInputElement).value;
+    schedulePersistShellSettings();
+  });
+}
+
+function wireBindHostInput(): void {
+  document.getElementById("bind-host")?.addEventListener("input", (e) => {
+    bindHost = (e.target as HTMLInputElement).value;
+    schedulePersistShellSettings();
   });
 }
 
@@ -426,14 +477,7 @@ function render(): void {
     </div>`;
 
   document.getElementById("host")!.onclick = () => void onHost();
-  document.getElementById("bind-host")!.addEventListener("input", (e) => {
-    bindHost = (e.target as HTMLInputElement).value;
-    try {
-      localStorage.setItem(BIND_HOST_STORAGE_KEY, bindHost);
-    } catch {
-      /* ignore */
-    }
-  });
+  wireBindHostInput();
   document.getElementById("go-join")!.onclick = () => {
     view = "join";
     render();
@@ -451,11 +495,7 @@ function render(): void {
 async function onHost(): Promise<void> {
   const bindInput = document.getElementById("bind-host") as HTMLInputElement | null;
   bindHost = bindInput?.value.trim() || DEFAULT_BIND_HOST;
-  try {
-    localStorage.setItem(BIND_HOST_STORAGE_KEY, bindHost);
-  } catch {
-    /* ignore */
-  }
+  await persistShellSettings();
   busy = true;
   setStatus("Starting host…");
   render();
@@ -482,6 +522,7 @@ async function onJoin(): Promise<void> {
     setStatus("Player name is required");
     return;
   }
+  await persistShellSettings();
   busy = true;
   setStatus("Connecting…");
   render();
@@ -505,6 +546,7 @@ void (async () => {
   } catch {
     /* bun may not be ready yet */
   }
+  await loadShellSettingsFromDisk();
   await loadDependencies();
   await loadAppInfo();
 })();
