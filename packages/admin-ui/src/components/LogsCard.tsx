@@ -6,11 +6,11 @@ type Props = {
 
 export function LogsCard({ log }: Props) {
   return (
-    <Card title="Activity log" subtitle={`${log.length} recent events · API & WebSocket`}>
+    <Card title="Activity log" subtitle={`${log.length} recent events`}>
       {log.length === 0 ? (
         <EmptyState>Actions and connection events will appear here.</EmptyState>
       ) : (
-        <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/60 p-2 font-mono text-[11px] leading-relaxed scrollbar-thin">
+        <div className="max-h-96 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/60 p-2 font-mono text-[11px] leading-relaxed scrollbar-thin">
           {log.map((line, i) => {
             const space = line.indexOf(" ");
             const time = space > 0 ? line.slice(0, space) : "";

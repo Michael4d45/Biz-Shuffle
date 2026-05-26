@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useToast } from "./components/Toast.js";
 import type { Command, ServerState } from "./types.js";
 import { fetchState, post } from "./api.js";
 
@@ -8,6 +9,7 @@ export function wsUrl(): string {
 }
 
 export function useAdmin() {
+  const { showToast } = useToast();
   const [state, setState] = useState<ServerState | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
@@ -22,17 +24,22 @@ export function useAdmin() {
     return s;
   }, []);
 
-  const trigger = async (path: string, body?: unknown) => {
-    const res = await post(path, body);
-    if (!res.ok) {
-      const detail = (await res.text()).trim();
-      pushLog(`${path} failed: ${res.status}${detail ? ` — ${detail}` : ""}`);
-    } else {
-      pushLog(`${path} ok`);
-      await refreshState();
-    }
-    return res.ok;
-  };
+  const trigger = useCallback(
+    async (path: string, body?: unknown) => {
+      const res = await post(path, body);
+      if (!res.ok) {
+        const detail = (await res.text()).trim();
+        pushLog(`${path} failed: ${res.status}${detail ? ` — ${detail}` : ""}`);
+        showToast("Action failed", "err");
+      } else {
+        pushLog(`${path} ok`);
+        showToast("Action successful", "ok");
+        await refreshState();
+      }
+      return res.ok;
+    },
+    [pushLog, refreshState, showToast]
+  );
 
   useEffect(() => {
     void refreshState().catch((e) => pushLog(String(e)));

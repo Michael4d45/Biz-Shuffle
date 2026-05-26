@@ -2,6 +2,7 @@ export type {
   Command,
   CommandName,
   GameEntry,
+  GameSwapInstance,
   Player,
   Plugin,
   ServerState,

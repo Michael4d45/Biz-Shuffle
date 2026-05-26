@@ -3,9 +3,14 @@ import { LogsCard } from "./components/LogsCard.js";
 import { PlayersCard } from "./components/PlayersCard.js";
 import { PluginsCard } from "./components/PluginsCard.js";
 import { SessionCard } from "./components/SessionCard.js";
-import { Badge, Button } from "./components/ui.js";
+import { Badge, Button, cn } from "./components/ui.js";
 import { formatUpdatedAt, playerCounts } from "./status.js";
-import { nextSwapDisplay, swapProgress, swapTimerActive } from "./swapDisplay.js";
+import {
+  nextSwapDisplay,
+  swapProgress,
+  swapProgressUrgent,
+  swapTimerActive,
+} from "./swapDisplay.js";
 import { useAdmin } from "./useAdmin.js";
 import { useNowMs } from "./useNowMs.js";
 
@@ -15,11 +20,15 @@ export function App() {
   const timerActive = swapTimerActive(state);
   const now = useNowMs(timerActive);
   const progress = swapProgress(state, now);
+  const urgent = swapProgressUrgent(state, now);
 
   return (
     <div className="min-h-screen">
       <div
-        className="fixed inset-x-0 top-0 z-50 h-1 origin-left bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)] will-change-transform"
+        className={cn(
+          "fixed inset-x-0 top-0 z-50 h-1 origin-left shadow-[0_0_12px_rgba(16,185,129,0.5)] will-change-transform",
+          urgent ? "bg-amber-400 shadow-amber-500/40" : "bg-emerald-500"
+        )}
         style={{ transform: `scaleX(${progress / 100})` }}
         aria-hidden
       />
@@ -69,7 +78,12 @@ export function App() {
           />
         </div>
 
-        <PlayersCard state={state} trigger={trigger} />
+        <PlayersCard
+          state={state}
+          trigger={trigger}
+          pushLog={pushLog}
+          refreshState={refreshState}
+        />
 
         <div className="grid gap-4 lg:grid-cols-2">
           <PluginsCard trigger={trigger} pushLog={pushLog} />

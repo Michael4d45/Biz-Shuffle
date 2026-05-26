@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AdminTrigger } from "../adminActions.js";
+import { intervalError, intervalValid } from "../intervalUtils.js";
 import { SESSION_BUTTONS } from "../sessionButtons.js";
-import { nextSwapDisplay } from "../swapDisplay.js";
+import { intervalDisplay, nextSwapDisplay } from "../swapDisplay.js";
 import type { ServerState } from "../types.js";
 import { ActionRow, Badge, Button, Card, Divider, FieldLabel, Input, Select } from "./ui.js";
 
@@ -16,6 +17,15 @@ const PRIMARY_PATHS = new Set(["/api/start", "/api/pause", "/api/do_swap"]);
 export function SessionCard({ state, trigger, nowMs }: Props) {
   const [intervalMin, setIntervalMin] = useState(5);
   const [intervalMax, setIntervalMax] = useState(10);
+
+  useEffect(() => {
+    if (state?.min_interval_secs) setIntervalMin(state.min_interval_secs);
+    if (state?.max_interval_secs) setIntervalMax(state.max_interval_secs);
+  }, [state?.min_interval_secs, state?.max_interval_secs]);
+
+  const draft = { min: intervalMin, max: intervalMax };
+  const err = intervalError(draft);
+  const valid = intervalValid(draft);
 
   const primary = SESSION_BUTTONS.filter((b) => PRIMARY_PATHS.has(b.path));
   const toggles = SESSION_BUTTONS.filter((b) => "toggle" in b);
@@ -43,8 +53,8 @@ export function SessionCard({ state, trigger, nowMs }: Props) {
           value={state?.mode ?? "sync"}
           onChange={(e) => void trigger("/api/mode", { mode: e.target.value })}
         >
-          <option value="sync">Sync</option>
-          <option value="save">Save</option>
+          <option value="sync">Sync swap (all same game)</option>
+          <option value="save">Save swap (per-player saves)</option>
         </Select>
       </div>
 
@@ -104,9 +114,10 @@ export function SessionCard({ state, trigger, nowMs }: Props) {
 
       <Divider />
 
-      <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-        Swap interval (minutes)
+      <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+        Swap interval (seconds)
       </p>
+      <p className="mb-2 font-mono text-xs text-slate-500">Current: {intervalDisplay(state)}</p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_auto]">
         <div>
           <FieldLabel htmlFor="interval-min">Min</FieldLabel>
@@ -132,6 +143,7 @@ export function SessionCard({ state, trigger, nowMs }: Props) {
           <Button
             variant="primary"
             className="w-full"
+            disabled={!valid}
             onClick={() =>
               void trigger("/api/interval", {
                 min_interval_secs: intervalMin,
@@ -143,6 +155,7 @@ export function SessionCard({ state, trigger, nowMs }: Props) {
           </Button>
         </div>
       </div>
+      {err ? <p className="mt-2 text-xs text-rose-400">{err}</p> : null}
     </Card>
   );
 }

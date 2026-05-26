@@ -156,7 +156,17 @@ export class SaveModeHandler implements GameModeHandler {
   }
 
   async handlePlayerSwap(player: string, _game: string, instanceId: string): Promise<void> {
-    if (!instanceId) throw new Error("instance ID is required");
+    if (!instanceId) {
+      this.server.updateStateAndPersist((st) => {
+        const p = st.players[player];
+        if (p) {
+          p.game = undefined;
+          p.instance_id = undefined;
+          st.players[player] = p;
+        }
+      });
+      return;
+    }
 
     let foundInst: GameSwapInstance | undefined;
     let foundPlayer: Player | undefined;
