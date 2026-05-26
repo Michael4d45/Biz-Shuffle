@@ -47,6 +47,11 @@ jobs:
       - name: Build headless server (Windows executable)
         run: bun run --filter @bizshuffle-bun/server-app build:release
 
+      - name: Sync desktop version from tag
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: bun run scripts/sync-desktop-version.ts
+
       - name: Build desktop app (Electrobun stable)
         working-directory: apps/desktop
         run: bun run build:release

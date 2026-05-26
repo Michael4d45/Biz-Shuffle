@@ -395,7 +395,6 @@ function defineShellRpc() {
         shellReady: () => {
           refreshDependencies(dataDir());
           notifyAppUpdateState();
-          void checkForUpdates();
         },
       } as NonNullable<
         Parameters<typeof defineElectrobunRPC<ShellRPCSchema>>[1]["handlers"]
@@ -410,7 +409,7 @@ desktopLog("bizshuffle-bun", "creating shell BrowserWindow (views://shell/index.
 shellWindow = new BrowserWindow({
   title: "BizShuffle",
   url: "views://shell/index.html",
-  frame: { x: 200, y: 120, width: 520, height: 580 },
+  frame: { x: 200, y: 120, width: 520, height: 640 },
   rpc: shellRpc,
   titleBarStyle: "default",
   transparent: false,

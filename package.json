@@ -22,7 +22,8 @@
     "smoke:desktop": "bun run --filter '@bizshuffle-bun/desktop' smoke",
     "build:admin": "bun run --filter '@bizshuffle-bun/admin-ui' build",
     "build:release": "bun run build:admin && bun run --filter @bizshuffle-bun/server-app build:release && bun run --filter @bizshuffle-bun/desktop build:release",
-    "package:server": "bun run scripts/package-server-release.ts"
+    "package:server": "bun run scripts/package-server-release.ts",
+    "sync-desktop-version": "bun run scripts/sync-desktop-version.ts"
   },
   "dependencies": {
     "electrobun": "^1.18.1"

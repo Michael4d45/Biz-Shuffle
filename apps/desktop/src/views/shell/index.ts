@@ -34,7 +34,7 @@ const rpc = Electroview.defineRPC<ShellRPCSchema>({
         if (el) el.textContent = msg;
       },
       updateState: (state) => {
-        updateState = state;
+        mergeUpdateState(state);
         patchFooter();
       },
       dependenciesState: (state) => {
@@ -154,11 +154,34 @@ function restoreFocus(saved: SavedFocus | null): void {
 }
 
 function escapeHtml(text: string): string {
-  return text
+  return String(text)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function displayVersion(value: unknown, fallback = "…"): string {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  } else if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return fallback;
+}
+
+function mergeUpdateState(incoming: AppUpdateState): void {
+  const latest =
+    incoming.latestVersion != null && String(incoming.latestVersion).trim()
+      ? displayVersion(incoming.latestVersion)
+      : updateState.latestVersion;
+  updateState = {
+    ...updateState,
+    ...incoming,
+    version: displayVersion(incoming.version, displayVersion(updateState.version)),
+    latestVersion: latest,
+  };
 }
 
 function depsPanelHtml(): string {
@@ -199,10 +222,9 @@ function depsPanelHtml(): string {
 }
 
 function footerHtml(): string {
-  const { version, channel, updateAvailable, updateReady, downloading, latestVersion, status } =
-    updateState;
-  const ver = (version?.trim() || "…").trim();
-  const latest = latestVersion?.trim() || "";
+  const { channel, updateAvailable, updateReady, downloading, latestVersion, status } = updateState;
+  const ver = displayVersion(updateState.version);
+  const latest = displayVersion(latestVersion, "");
   const ready = Boolean(updateReady);
   const available = Boolean(updateAvailable);
   const devSuffix = channel === "dev" ? " (dev)" : "";
@@ -279,9 +301,16 @@ function patchDepsPanel(): void {
 
 function patchFooter(): void {
   const footer = document.querySelector(".app-footer");
-  if (!footer) return;
-  footer.outerHTML = footerHtml();
-  wireFooterButtons();
+  if (!footer) {
+    slog(`patchFooter skipped — no footer (version=${displayVersion(updateState.version)})`);
+    return;
+  }
+  try {
+    footer.outerHTML = footerHtml();
+    wireFooterButtons();
+  } catch (e) {
+    slog(`patchFooter failed: ${e}`);
+  }
 }
 
 function updatePlayButtons(): void {
@@ -322,10 +351,11 @@ async function loadDependencies(): Promise<void> {
 
 async function loadAppInfo(): Promise<void> {
   try {
-    updateState = await rpc.request.getAppInfo({});
+    mergeUpdateState(await rpc.request.getAppInfo({}));
     patchFooter();
-    updateState = await rpc.request.checkForUpdates({});
+    mergeUpdateState(await rpc.request.checkForUpdates({}));
     patchFooter();
+    slog(`app info loaded: version=${displayVersion(updateState.version)}`);
   } catch (e) {
     slog(`getAppInfo failed: ${e}`);
   }
@@ -428,18 +458,20 @@ function render(): void {
   if (view === "join") {
     root.innerHTML = `
       <div class="shell">
-        <header>
-          <button type="button" class="link" id="back">← Back</button>
-          <h1>Join session</h1>
-        </header>
-        ${deps}
-        <form class="join-form" id="join-form">
-          <label>Server URL<input id="server-url" value="${escapeHtml(serverUrl)}" ${busy ? "disabled" : ""} /></label>
-          <div id="discovered-servers">${discoveredServersHtml(true)}</div>
-          <label>Your name<input id="player-name" value="${escapeHtml(playerName)}" placeholder="Player name" ${busy ? "disabled" : ""} /></label>
-          <button type="submit" ${busy || depsState.playBlocked ? "disabled" : ""}>Join</button>
-        </form>
-        <p class="status" id="status">${escapeHtml(statusLine)}</p>
+        <div class="shell-body">
+          <header>
+            <button type="button" class="link" id="back">← Back</button>
+            <h1>Join session</h1>
+          </header>
+          ${deps}
+          <form class="join-form" id="join-form">
+            <label>Server URL<input id="server-url" value="${escapeHtml(serverUrl)}" ${busy ? "disabled" : ""} /></label>
+            <div id="discovered-servers">${discoveredServersHtml(true)}</div>
+            <label>Your name<input id="player-name" value="${escapeHtml(playerName)}" placeholder="Player name" ${busy ? "disabled" : ""} /></label>
+            <button type="submit" ${busy || depsState.playBlocked ? "disabled" : ""}>Join</button>
+          </form>
+          <p class="status" id="status">${escapeHtml(statusLine)}</p>
+        </div>
         ${footer}
       </div>`;
     document.getElementById("back")!.onclick = () => {
@@ -461,28 +493,30 @@ function render(): void {
 
   root.innerHTML = `
     <div class="shell">
-      <header>
-        <h1>BizShuffle</h1>
-        <p class="tagline">Host a session or join one as a player.</p>
-      </header>
-      ${deps}
-      <div class="actions">
-        <button type="button" id="host" ${busy ? "disabled" : ""}>Host</button>
-        <button type="button" id="go-join" ${busy || depsState.playBlocked ? "disabled" : ""}>Join</button>
+      <div class="shell-body">
+        <header>
+          <h1>BizShuffle</h1>
+          <p class="tagline">Host a session or join one as a player.</p>
+        </header>
+        ${deps}
+        <div class="actions">
+          <button type="button" id="host" ${busy ? "disabled" : ""}>Host</button>
+          <button type="button" id="go-join" ${busy || depsState.playBlocked ? "disabled" : ""}>Join</button>
+        </div>
+        <details class="host-advanced">
+          <summary>Host options</summary>
+          <label class="bind-host-label">Bind address
+            <input id="bind-host" value="${escapeHtml(bindHost)}" placeholder="${DEFAULT_BIND_HOST}" ${busy ? "disabled" : ""} />
+          </label>
+          <p class="bind-host-hint"><code>127.0.0.1</code> — local only. <code>0.0.0.0</code> — accept LAN connections.</p>
+        </details>
+        <div id="discovered-servers">${discoveredServersHtml(true, true)}</div>
+        <div class="footer-actions">
+          <button type="button" class="link" id="open-data">Open data folder</button>
+          <button type="button" class="link" id="refresh-disc">Refresh discovery</button>
+        </div>
+        <p class="status" id="status">${escapeHtml(statusLine)}</p>
       </div>
-      <details class="host-advanced">
-        <summary>Host options</summary>
-        <label class="bind-host-label">Bind address
-          <input id="bind-host" value="${escapeHtml(bindHost)}" placeholder="${DEFAULT_BIND_HOST}" ${busy ? "disabled" : ""} />
-        </label>
-        <p class="bind-host-hint"><code>127.0.0.1</code> — local only. <code>0.0.0.0</code> — accept LAN connections.</p>
-      </details>
-      <div id="discovered-servers">${discoveredServersHtml(true, true)}</div>
-      <div class="footer-actions">
-        <button type="button" class="link" id="open-data">Open data folder</button>
-        <button type="button" class="link" id="refresh-disc">Refresh discovery</button>
-      </div>
-      <p class="status" id="status">${escapeHtml(statusLine)}</p>
       ${footer}
     </div>`;
 

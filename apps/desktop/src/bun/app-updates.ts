@@ -5,6 +5,16 @@ import { desktopLog } from "./log.js";
 
 const DEV_FALLBACK_VERSION = pkg.version;
 
+function formatVersion(value: unknown): string {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  } else if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return DEV_FALLBACK_VERSION?.trim() || "0.0.0";
+}
+
 type SendUpdateState = (state: AppUpdateState) => void;
 
 let sendState: SendUpdateState | null = null;
@@ -24,18 +34,27 @@ function pushState(patch: Partial<AppUpdateState>): AppUpdateState {
   return currentState;
 }
 
-function stateFromUpdaterCheck(result: {
-  version: string;
-  hash: string;
-  updateAvailable: boolean;
-  updateReady: boolean;
-  error: string;
-}): Partial<AppUpdateState> {
+function stateFromUpdaterCheck(
+  result: {
+    version: string;
+    hash: string;
+    updateAvailable: boolean;
+    updateReady: boolean;
+    error: string;
+  },
+  localVersion: string
+): Partial<AppUpdateState> {
   const cached = Updater.updateInfo();
-  const latestVersion = result.version?.trim() || cached?.version?.trim() || undefined;
+  const remoteVersion = result.version?.trim() || cached?.version?.trim() || undefined;
+  const updateAvailable = Boolean(result.updateAvailable);
+  // Electrobun may return the local version when no update; don't label that as "latest".
+  const latestVersion =
+    updateAvailable && remoteVersion && remoteVersion !== localVersion
+      ? remoteVersion
+      : undefined;
   return {
     latestVersion,
-    updateAvailable: Boolean(result.updateAvailable),
+    updateAvailable,
     updateReady: Boolean(cached?.updateReady ?? result.updateReady),
     error: result.error?.trim() || undefined,
   };
@@ -83,9 +102,13 @@ export function startAppUpdateStatusListener(): void {
 
 export async function getAppInfo(): Promise<AppUpdateState> {
   const local = await Updater.getLocalInfo();
-  const version = local.version?.trim() || DEV_FALLBACK_VERSION?.trim() || "0.0.0";
-  const channel = local.channel || "dev";
+  const version = formatVersion(local.version);
+  const channel = typeof local.channel === "string" ? local.channel : "dev";
   const updatesEnabled = channel !== "dev" && Boolean(local.baseUrl?.trim());
+  desktopLog(
+    "bizshuffle-bun",
+    `app info: version=${version} channel=${channel} updatesEnabled=${updatesEnabled}`
+  );
   return pushState({
     version,
     channel,
@@ -105,10 +128,12 @@ export async function checkForUpdates(): Promise<AppUpdateState> {
   }
   try {
     const result = await Updater.checkForUpdate();
-    const patch = stateFromUpdaterCheck(result);
+    const remoteVersion =
+      result.version?.trim() || Updater.updateInfo()?.version?.trim() || undefined;
+    const patch = stateFromUpdaterCheck(result, info.version);
     desktopLog(
       "bizshuffle-bun",
-      `update check: available=${patch.updateAvailable} ready=${patch.updateReady} latest=${patch.latestVersion ?? "(none)"} err=${patch.error ?? ""}`
+      `update check: local=${info.version} remote=${remoteVersion ?? "(unknown)"} available=${patch.updateAvailable} ready=${patch.updateReady} err=${patch.error ?? ""}`
     );
     return pushState({ ...patch, downloading: false });
   } catch (err) {
