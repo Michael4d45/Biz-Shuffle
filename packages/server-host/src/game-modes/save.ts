@@ -32,7 +32,6 @@ export class SaveModeHandler implements GameModeHandler {
     while (Date.now() < deadline) {
       const waitingFiles = this.server.pendingInstanceCount > 0;
       const waitingCmds = this.server.pendingCommandCount > 0;
-      if (waitingFiles) this.server.requestPendingSaves();
       if (!waitingFiles && !waitingCmds) return false;
       await new Promise((r) => setTimeout(r, 200));
     }
@@ -46,7 +45,6 @@ export class SaveModeHandler implements GameModeHandler {
       const waitingFiles = this.server.pendingInstanceCount > 0;
       const waitingCmds = this.server.pendingCommandCount > 0;
       if (!waitingFiles && !waitingCmds) return false;
-      if (waitingFiles) this.server.requestPendingSaves();
       await new Promise((r) => setTimeout(r, 200));
     }
     return this.server.pendingInstanceCount > 0 || this.server.pendingCommandCount > 0;
