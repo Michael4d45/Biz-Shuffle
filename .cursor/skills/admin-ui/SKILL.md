@@ -12,12 +12,12 @@ Package: `@bizshuffle-bun/admin-ui` → built to `packages/server-host/priv/stat
 
 ## Stack
 
-| Piece | Location |
-|-------|----------|
-| React 18 + Vite 8 | `packages/admin-ui/vite.config.ts` |
+| Piece              | Location                                                             |
+| ------------------ | -------------------------------------------------------------------- |
+| React 18 + Vite 8  | `packages/admin-ui/vite.config.ts`                                   |
 | **React Compiler** | `reactCompilerPreset({ target: "18" })` via `@rolldown/plugin-babel` |
-| Tailwind 4 | `@tailwindcss/vite` |
-| ESLint | `eslint-plugin-react-compiler` on `packages/admin-ui/**/*` |
+| Tailwind 4         | `@tailwindcss/vite`                                                  |
+| ESLint             | `eslint-plugin-react-compiler` on `packages/admin-ui/**/*`           |
 
 ## React Compiler (important)
 
@@ -55,9 +55,9 @@ bun run build:admin
 
 ## Layout (common touch points)
 
-| Area | Path |
-|------|------|
-| App shell | `src/App.tsx`, `src/useAdmin.ts` |
-| Cards | `src/components/*Card.tsx`, `*Modal.tsx` |
-| Hooks | `src/hooks/` |
+| Area          | Path                                                                     |
+| ------------- | ------------------------------------------------------------------------ |
+| App shell     | `src/App.tsx`, `src/useAdmin.ts`                                         |
+| Cards         | `src/components/*Card.tsx`, `*Modal.tsx`                                 |
+| Hooks         | `src/hooks/`                                                             |
 | Save-mode DnD | `PlayerDragContext.tsx`, `usePlayerDragDrop.ts`, `SaveInstancesCard.tsx` |

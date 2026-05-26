@@ -112,10 +112,7 @@ export function PlayersCard({ state, trigger, pushLog, refreshState }: Props) {
               const showDone = expanded[name];
               const completions = playerCompletionCount(p);
               return (
-                <li
-                  key={name}
-                  className="rounded-lg border border-slate-800 bg-slate-950/40 p-3"
-                >
+                <li key={name} className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">

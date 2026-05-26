@@ -5,7 +5,11 @@ type DragApi = ReturnType<typeof usePlayerDragDrop>;
 
 function GripIcon({ className }: { className?: string }) {
   return (
-    <svg className={cn("size-3 shrink-0 opacity-60", className)} fill="currentColor" viewBox="0 0 20 20">
+    <svg
+      className={cn("size-3 shrink-0 opacity-60", className)}
+      fill="currentColor"
+      viewBox="0 0 20 20"
+    >
       <path d="M3 4h14a1 1 0 010 2H3a1 1 0 010-2zM3 8h14a1 1 0 010 2H3a1 1 0 010-2zM3 12h14a1 1 0 010 2H3a1 1 0 010-2z" />
     </svg>
   );

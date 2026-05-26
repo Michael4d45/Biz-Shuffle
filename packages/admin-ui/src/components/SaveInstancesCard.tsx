@@ -114,11 +114,7 @@ export function SaveInstancesCard({ state, trigger, pushLog, refreshState }: Pro
                       <span className="text-[11px] text-slate-500">
                         {assigned ? "assigned" : "unassigned"}
                       </span>
-                      {completed > 0 ? (
-                        <Badge variant="warn">
-                          {completed} completed
-                        </Badge>
-                      ) : null}
+                      {completed > 0 ? <Badge variant="warn">{completed} completed</Badge> : null}
                     </div>
                     {assigned ? (
                       <div className="mt-2">

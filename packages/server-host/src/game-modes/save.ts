@@ -242,9 +242,7 @@ export class SaveModeHandler implements GameModeHandler {
     if (await this.waitForFileCheck()) return;
 
     const playerCount = Object.keys(this.server.snapshotState().players).length;
-    const pending = new Set(
-      Object.keys(this.server.snapshotState().players)
-    );
+    const pending = new Set(Object.keys(this.server.snapshotState().players));
 
     let current = playerName;
     for (let step = 0; step < playerCount + 1; step++) {

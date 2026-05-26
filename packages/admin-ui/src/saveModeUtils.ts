@@ -5,9 +5,7 @@ export function instanceFileStateLabel(inst: GameSwapInstance): string {
   return inst.pending_player ? `${state}: ${inst.pending_player}` : state;
 }
 
-export function instanceFileStateBadgeVariant(
-  inst: GameSwapInstance
-): "ok" | "warn" | "neutral" {
+export function instanceFileStateBadgeVariant(inst: GameSwapInstance): "ok" | "warn" | "neutral" {
   if (inst.file_state === "ready") return "ok";
   if (inst.file_state === "pending") return "warn";
   return "neutral";

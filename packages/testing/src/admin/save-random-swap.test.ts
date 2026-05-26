@@ -54,7 +54,9 @@ describe("save mode random swap", () => {
     expect(res.status).toBe(200);
 
     const stateRes = await fetch(`${base}/state.json`);
-    const body = (await stateRes.json()) as { state: { players: Record<string, { game?: string }> } };
+    const body = (await stateRes.json()) as {
+      state: { players: Record<string, { game?: string }> };
+    };
     expect(body.state.players.solo?.game).toBe("test.zip");
   });
 });
