@@ -6,11 +6,12 @@
  * @see https://github.com/blackboardsh/electrobun/issues/429
  * @see https://github.com/blackboardsh/electrobun/pull/433
  *
- * Remove postBuild/postPackage hooks once a fixed Electrobun release is verified.
+ * ELECTROBUN_BUILD_DIR is already `build/{env}-win-x64` — do not append the platform prefix again.
+ * The installed app is extracted from Resources/*.tar.zst; postWrap patches that archive too.
  */
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { copyFileSync, existsSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const require = createRequire(import.meta.url);
@@ -27,6 +28,17 @@ function rceditExe(): string {
   throw new Error("rcedit binary not found — run bun install in apps/desktop");
 }
 
+function zstdExe(): string {
+  const candidate = join(desktopRoot, "node_modules", "electrobun", "dist-win-x64", "zig-zstd.exe");
+  if (existsSync(candidate)) return candidate;
+  throw new Error(`zig-zstd not found at ${candidate}`);
+}
+
+function systemTar(): string {
+  const winTar = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
+  return existsSync(winTar) ? winTar : "tar";
+}
+
 async function writeIcoFromPng(pngPath: string, icoPath: string): Promise<void> {
   const pngToIco = (await import("png-to-ico")).default;
   const buf = await pngToIco(pngPath);
@@ -34,21 +46,77 @@ async function writeIcoFromPng(pngPath: string, icoPath: string): Promise<void> 
 }
 
 function embedIcon(exePath: string, icoPath: string): void {
-  execFileSync(rceditExe(), [exePath, "--set-icon", icoPath], {
-    stdio: "pipe",
-  });
+  execFileSync(rceditExe(), [exePath, "--set-icon", icoPath], { stdio: "pipe" });
 }
 
 function patchExeDir(binDir: string, icoPath: string): void {
+  if (!existsSync(binDir)) return;
   for (const name of readdirSync(binDir)) {
     if (!name.endsWith(".exe")) continue;
     const exe = join(binDir, name);
     try {
       embedIcon(exe, icoPath);
-      console.log(`[embed-win-icons] ${name}`);
+      console.log(`[embed-win-icons] ${exe}`);
     } catch (err) {
       console.warn(`[embed-win-icons] skipped ${name}:`, err instanceof Error ? err.message : err);
     }
+  }
+}
+
+function patchBundleRoot(bundleRoot: string, icoPath: string): void {
+  if (!existsSync(bundleRoot)) return;
+  patchExeDir(join(bundleRoot, "bin"), icoPath);
+  const resourcesIco = join(bundleRoot, "Resources", "app.ico");
+  if (existsSync(dirname(resourcesIco))) {
+    copyFileSync(icoPath, resourcesIco);
+    console.log(`[embed-win-icons] ${resourcesIco}`);
+  }
+}
+
+/** Patch launcher/bun inside the tar.zst that Setup extracts on install. */
+function patchPayloadTarZst(resourcesDir: string, appName: string, icoPath: string): void {
+  if (!existsSync(resourcesDir)) return;
+  const tarZst = readdirSync(resourcesDir).find((f) => f.endsWith(".tar.zst"));
+  if (!tarZst) return;
+
+  const zstPath = join(resourcesDir, tarZst);
+  const tarPath = join(resourcesDir, tarZst.replace(/\.zst$/, ""));
+  const staging = join(resourcesDir, ".icon-patch-staging");
+
+  try {
+    rmSync(staging, { recursive: true, force: true });
+    mkdirSync(staging, { recursive: true });
+
+    execFileSync(zstdExe(), ["decompress", "-f", zstPath, "-o", tarPath], { stdio: "pipe" });
+    execFileSync(systemTar(), ["-xf", tarPath, "-C", staging], { stdio: "pipe" });
+
+    const payloadRoot = join(staging, appName);
+    patchBundleRoot(payloadRoot, icoPath);
+    if (!existsSync(join(payloadRoot, "bin", "launcher.exe"))) {
+      // Fallback: find any bin/launcher.exe under staging
+      for (const entry of readdirSync(staging, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const candidate = join(staging, entry.name);
+        if (existsSync(join(candidate, "bin", "launcher.exe"))) {
+          patchBundleRoot(candidate, icoPath);
+          break;
+        }
+      }
+    }
+
+    if (existsSync(tarPath)) rmSync(tarPath, { force: true });
+    execFileSync(systemTar(), ["-cf", tarPath, "-C", staging, appName], { stdio: "pipe" });
+    rmSync(zstPath, { force: true });
+    execFileSync(zstdExe(), ["compress", "-f", tarPath, "-o", zstPath], { stdio: "pipe" });
+    if (existsSync(tarPath)) rmSync(tarPath, { force: true });
+    console.log(`[embed-win-icons] repacked ${tarZst}`);
+  } catch (err) {
+    console.warn(
+      `[embed-win-icons] failed to patch ${tarZst}:`,
+      err instanceof Error ? err.message : err
+    );
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
   }
 }
 
@@ -59,7 +127,7 @@ function patchSetupExes(artifactDir: string, icoPath: string): void {
     const exe = join(artifactDir, name);
     try {
       embedIcon(exe, icoPath);
-      console.log(`[embed-win-icons] ${name}`);
+      console.log(`[embed-win-icons] ${exe}`);
     } catch (err) {
       console.warn(`[embed-win-icons] skipped ${name}:`, err instanceof Error ? err.message : err);
     }
@@ -75,28 +143,31 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const buildDir = resolve(desktopRoot, process.env.ELECTROBUN_BUILD_DIR ?? "build");
   const env = process.env.ELECTROBUN_BUILD_ENV ?? "stable";
   const os = process.env.ELECTROBUN_OS ?? "win";
   const arch = process.env.ELECTROBUN_ARCH ?? "x64";
   const appName = process.env.ELECTROBUN_APP_NAME ?? "BizShuffle";
-  const platformDir = join(buildDir, `${env}-${os}-${arch}`);
-  const bundleRoot = join(platformDir, appName);
-  const binDir = join(bundleRoot, "bin");
+  const platformSuffix = `${env}-${os}-${arch}`;
 
+  const buildDir = process.env.ELECTROBUN_BUILD_DIR
+    ? resolve(process.env.ELECTROBUN_BUILD_DIR)
+    : resolve(desktopRoot, "build", platformSuffix);
+
+  const bundleRoot = join(buildDir, appName);
   const icoPath = join(buildDir, ".bizshuffle-app.ico");
   await writeIcoFromPng(iconPng, icoPath);
 
-  const resourcesIco = join(bundleRoot, "Resources", "app.ico");
-  if (existsSync(dirname(resourcesIco))) {
-    copyFileSync(icoPath, resourcesIco);
-    console.log(`[embed-win-icons] Resources/app.ico`);
+  if (existsSync(bundleRoot)) {
+    patchBundleRoot(bundleRoot, icoPath);
+  } else {
+    console.warn(`[embed-win-icons] bundle not found: ${bundleRoot}`);
   }
 
-  if (existsSync(binDir)) {
-    patchExeDir(binDir, icoPath);
-  } else {
-    console.warn(`[embed-win-icons] bin dir not found: ${binDir}`);
+  const wrapperPath = process.env.ELECTROBUN_WRAPPER_BUNDLE_PATH;
+  if (wrapperPath) {
+    const wrapperRoot = resolve(wrapperPath);
+    patchExeDir(join(wrapperRoot, "bin"), icoPath);
+    patchPayloadTarZst(join(wrapperRoot, "Resources"), appName, icoPath);
   }
 
   const artifactDir = process.env.ELECTROBUN_ARTIFACT_DIR

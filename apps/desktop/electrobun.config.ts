@@ -10,6 +10,7 @@ export default {
   scripts: {
     preBuild: "scripts/stage-admin-static.ts",
     postBuild: "scripts/embed-win-icons.ts",
+    postWrap: "scripts/embed-win-icons.ts",
     postPackage: "scripts/embed-win-icons.ts",
   },
   build: {
