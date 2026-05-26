@@ -39,6 +39,11 @@ export function syncDesktopVersion(versionInput: string): string {
     throw new Error(`Invalid semver: ${version}`);
   }
 
+  const current = readDesktopVersions();
+  if (current.packageJson === version && current.electrobunConfig === version) {
+    return version;
+  }
+
   const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version: string };
   pkg.version = version;
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
