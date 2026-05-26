@@ -77,6 +77,27 @@ async function downloadOne(
   renameSync(tmp, dest);
 }
 
+/** Download a host save into `{dataDir}/saves/{instanceId}.state` (no-op if missing on host). */
+export async function ensureSaveFile(
+  baseUrl: string,
+  dataDir: string,
+  instanceId: string,
+  fetchFn: typeof fetch = fetch
+): Promise<void> {
+  const dest = join(dataDir, "saves", `${instanceId}.state`);
+  if (existsSync(dest)) return;
+  const url = `${baseUrl.replace(/\/$/, "")}/save/${instanceId}.state`;
+  const res = await fetchFn(url);
+  if (res.status === 404) return;
+  if (!res.ok) throw new Error(`save download failed: ${res.status}`);
+  mkdirSync(dirname(dest), { recursive: true });
+  const tmp = `${dest}.tmp`;
+  const buf = Buffer.from(await res.arrayBuffer());
+  const { writeFileSync, renameSync } = await import("node:fs");
+  writeFileSync(tmp, buf);
+  renameSync(tmp, dest);
+}
+
 export function waitForFileStable(path: string, timeoutMs = 2000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let lastSize = -1;

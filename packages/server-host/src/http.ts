@@ -110,9 +110,14 @@ export function createHttpApp(server: BizShuffleServer): Express {
     ok(res);
   });
 
-  app.post("/api/do_swap", (_req, res) => {
-    void server.performSwap().catch((err) => console.error("do_swap:", err));
-    ok(res);
+  app.post("/api/do_swap", async (_req, res) => {
+    try {
+      await server.performSwap();
+      ok(res);
+    } catch (err) {
+      console.error("do_swap:", err);
+      res.status(500).send(String(err));
+    }
   });
 
   app.post("/api/random_swap", async (req, res) => {
@@ -642,7 +647,6 @@ export function createHttpApp(server: BizShuffleServer): Express {
       await new Promise((r) => setTimeout(r, 100));
     }
     if (!existsSync(savePath)) {
-      server.setInstanceFileState(instanceId, "none");
       res.status(404).send("save file not found");
       return;
     }

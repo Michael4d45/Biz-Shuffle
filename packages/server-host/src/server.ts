@@ -257,8 +257,8 @@ export class BizShuffleServer {
   }
 
   setPendingAllFiles(): void {
-    for (const p of Object.values(this.snapshotState().players)) {
-      this.setPlayerFilePending(p);
+    for (const name of Object.keys(this.snapshotState().players)) {
+      this.setPlayerFilePending(this.currentPlayer(name));
     }
   }
 

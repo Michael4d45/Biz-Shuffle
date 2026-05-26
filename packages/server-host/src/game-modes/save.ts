@@ -26,13 +26,28 @@ function validateNoDuplicateInstanceAssignments(players: Record<string, Player>)
 export class SaveModeHandler implements GameModeHandler {
   constructor(private readonly server: BizShuffleServer) {}
 
-  private async waitForFileCheck(): Promise<boolean> {
-    for (let i = 0; i < 3; i++) {
+  /** Wait until no pending save files or in-flight swap commands. Returns true if still blocked. */
+  private async waitForFileCheck(timeoutMs = 30_000): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
       const waitingFiles = this.server.pendingInstanceCount > 0;
       const waitingCmds = this.server.pendingCommandCount > 0;
       if (waitingFiles) this.server.requestPendingSaves();
       if (!waitingFiles && !waitingCmds) return false;
-      await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return this.server.pendingInstanceCount > 0 || this.server.pendingCommandCount > 0;
+  }
+
+  /** Poll until pending instances upload (or timeout). Returns true if still waiting. */
+  private async waitForPendingSaves(timeoutMs = 60_000): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const waitingFiles = this.server.pendingInstanceCount > 0;
+      const waitingCmds = this.server.pendingCommandCount > 0;
+      if (!waitingFiles && !waitingCmds) return false;
+      if (waitingFiles) this.server.requestPendingSaves();
+      await new Promise((r) => setTimeout(r, 200));
     }
     return this.server.pendingInstanceCount > 0 || this.server.pendingCommandCount > 0;
   }
@@ -79,6 +94,11 @@ export class SaveModeHandler implements GameModeHandler {
 
     const preventSame = st.prevent_same_game_swap;
     this.server.setPendingAllFiles();
+    this.server.requestPendingSaves();
+    if (await this.waitForPendingSaves()) {
+      console.error("save swap: timed out waiting for players to upload saves");
+      return;
+    }
 
     const players = Object.keys(st.players);
     const playerCurrentGames: Record<string, string> = {};
@@ -199,6 +219,11 @@ export class SaveModeHandler implements GameModeHandler {
     if (!foundInst) throw new Error("instance not found");
     if (foundPlayer) {
       this.server.setInstanceFileState(foundInst.id, "pending", foundPlayer.name);
+      this.server.requestPendingSaves();
+      if (await this.waitForPendingSaves()) {
+        console.error("save swap: timed out waiting for displaced player save");
+        return;
+      }
       this.server.sendSwap(foundPlayer);
     } else {
       this.server.setInstanceFileState(foundInst.id, "none");
@@ -255,6 +280,12 @@ export class SaveModeHandler implements GameModeHandler {
       if (!pick) break;
 
       this.server.setPlayerFilePending(player);
+      this.server.requestPendingSaves();
+      if (await this.waitForPendingSaves()) {
+        console.error("save swap: timed out waiting for random-swap save");
+        return;
+      }
+
       player.instance_id = pick.instance.id;
       player.game = pick.instance.game;
 

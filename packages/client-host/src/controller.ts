@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { Command } from "@bizshuffle-bun/protocol";
 import type { BizhawkIpc } from "./bizhawk-ipc.js";
 import type { ClientApiPort } from "./api.js";
-import { ensureFile } from "./downloads.js";
+import { ensureFile, ensureSaveFile } from "./downloads.js";
 import type { SendFn } from "./ws-client.js";
 import { PluginSyncManager } from "./plugin-sync.js";
 
@@ -134,6 +134,15 @@ export class Controller {
         await ensureFile(this.deps.api.baseUrl, this.deps.dataDir, game);
       } catch (err) {
         await nack(cmd.id, `download failed: ${err}`);
+        return;
+      }
+    }
+
+    if (instanceId) {
+      try {
+        await ensureSaveFile(this.deps.api.baseUrl, this.deps.dataDir, instanceId);
+      } catch (err) {
+        await nack(cmd.id, `save download failed: ${err}`);
         return;
       }
     }
