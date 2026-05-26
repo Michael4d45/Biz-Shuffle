@@ -60,12 +60,14 @@ new Electroview({ rpc });
 slog("Electroview constructed");
 
 const DEFAULT_BIND_HOST = "127.0.0.1";
+const DEFAULT_HOST_PORT = 8080;
 
 let busy = false;
 let view: "welcome" | "join" = "welcome";
 let serverUrl = "http://127.0.0.1:8080";
 let playerName = "";
 let bindHost = DEFAULT_BIND_HOST;
+let hostPort = DEFAULT_HOST_PORT;
 let statusLine = "";
 let discovered: { label: string; url: string; isHosted: boolean }[] = [];
 let saveSettingsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -92,17 +94,31 @@ function captureFormState(): void {
   if (playerNameEl) playerName = playerNameEl.value;
   const bindHostEl = document.getElementById("bind-host") as HTMLInputElement | null;
   if (bindHostEl) bindHost = bindHostEl.value;
+  const hostPortEl = document.getElementById("host-port") as HTMLInputElement | null;
+  if (hostPortEl) hostPort = parseHostPortInput(hostPortEl.value);
+}
+
+function parseHostPortInput(raw: string): number {
+  const n = Number(raw.trim());
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > 65535) {
+    return DEFAULT_HOST_PORT;
+  }
+  return n;
 }
 
 function applySettings(settings: ShellSettings): void {
   bindHost = settings.bindHost || DEFAULT_BIND_HOST;
+  hostPort =
+    typeof settings.hostPort === "number" && Number.isFinite(settings.hostPort)
+      ? parseHostPortInput(String(settings.hostPort))
+      : DEFAULT_HOST_PORT;
   serverUrl = settings.serverUrl || serverUrl;
   playerName = settings.playerName;
 }
 
 function currentSettingsPatch(): Partial<ShellSettings> {
   captureFormState();
-  return { bindHost, serverUrl, playerName };
+  return { bindHost, hostPort, serverUrl, playerName };
 }
 
 async function persistShellSettings(): Promise<void> {
@@ -447,9 +463,13 @@ function wireJoinFormInputs(): void {
   });
 }
 
-function wireBindHostInput(): void {
+function wireHostOptionsInputs(): void {
   document.getElementById("bind-host")?.addEventListener("input", (e) => {
     bindHost = (e.target as HTMLInputElement).value;
+    schedulePersistShellSettings();
+  });
+  document.getElementById("host-port")?.addEventListener("input", (e) => {
+    hostPort = parseHostPortInput((e.target as HTMLInputElement).value);
     schedulePersistShellSettings();
   });
 }
@@ -519,7 +539,10 @@ function render(): void {
           <label class="bind-host-label">Bind address
             <input id="bind-host" value="${escapeHtml(bindHost)}" placeholder="${DEFAULT_BIND_HOST}" ${busy ? "disabled" : ""} />
           </label>
-          <p class="bind-host-hint"><code>127.0.0.1</code> — local only. <code>0.0.0.0</code> — accept LAN connections.</p>
+          <label class="bind-host-label">Port
+            <input id="host-port" type="number" min="0" max="65535" step="1" value="${hostPort}" placeholder="${DEFAULT_HOST_PORT}" ${busy ? "disabled" : ""} />
+          </label>
+          <p class="bind-host-hint"><code>127.0.0.1</code> — local only. <code>0.0.0.0</code> — accept LAN connections. Port <code>0</code> picks a free port.</p>
         </details>
         <div id="discovered-servers">${discoveredServersHtml(true, true)}</div>
         <div class="footer-actions">
@@ -532,7 +555,7 @@ function render(): void {
     </div>`;
 
   document.getElementById("host")!.onclick = () => void onHost();
-  wireBindHostInput();
+  wireHostOptionsInputs();
   document.getElementById("go-join")!.onclick = () => {
     view = "join";
     render();
@@ -550,14 +573,19 @@ function render(): void {
 
 async function onHost(): Promise<void> {
   const bindInput = document.getElementById("bind-host") as HTMLInputElement | null;
+  const portInput = document.getElementById("host-port") as HTMLInputElement | null;
   bindHost = bindInput?.value.trim() || DEFAULT_BIND_HOST;
+  hostPort = parseHostPortInput(portInput?.value ?? String(hostPort));
   await persistShellSettings();
   busy = true;
   setStatus("Starting host…");
   render();
   try {
-    const { url, bindHost: bound } = await rpc.request.host({ bindHost });
-    setStatus(`Admin opened at ${url} (listening on ${bound})`);
+    const result = await rpc.request.host({ bindHost, hostPort });
+    hostPort = result.hostPort;
+    bindHost = result.bindHost;
+    await persistShellSettings();
+    setStatus(`Admin opened at ${result.url} (listening on ${result.bindHost}:${result.hostPort})`);
   } catch (e) {
     setStatus(String(e));
   } finally {

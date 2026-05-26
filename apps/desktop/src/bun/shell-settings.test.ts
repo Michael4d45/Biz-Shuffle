@@ -9,11 +9,13 @@ describe("shell-settings", () => {
     const dataDir = mkdtempSync(join(tmpdir(), "bizshuffle-shell-settings-"));
     saveShellSettings(dataDir, {
       bindHost: "0.0.0.0",
+      hostPort: 9090,
       serverUrl: "http://192.168.1.10:9090",
       playerName: "Alice",
     });
     const loaded = loadShellSettings(dataDir);
     expect(loaded.bindHost).toBe("0.0.0.0");
+    expect(loaded.hostPort).toBe(9090);
     expect(loaded.serverUrl).toBe("http://192.168.1.10:9090");
     expect(loaded.playerName).toBe("Alice");
     const raw = JSON.parse(readFileSync(join(dataDir, "settings.json"), "utf8")) as {
@@ -24,7 +26,11 @@ describe("shell-settings", () => {
 
   it("merges partial updates", () => {
     const dataDir = mkdtempSync(join(tmpdir(), "bizshuffle-shell-settings-"));
-    saveShellSettings(dataDir, { bindHost: "127.0.0.1", serverUrl: "http://127.0.0.1:8080" });
+    saveShellSettings(dataDir, {
+      bindHost: "127.0.0.1",
+      hostPort: 8080,
+      serverUrl: "http://127.0.0.1:8080",
+    });
     saveShellSettings(dataDir, { playerName: "Bob" });
     expect(loadShellSettings(dataDir).playerName).toBe("Bob");
     expect(loadShellSettings(dataDir).serverUrl).toBe("http://127.0.0.1:8080");

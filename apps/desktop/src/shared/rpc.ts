@@ -10,6 +10,8 @@ export type DiscoveredServerEntry = {
 /** Persisted shell form fields ({dataDir}/settings.json). */
 export type ShellSettings = {
   bindHost: string;
+  /** TCP port for Host; 0 = pick a free port. */
+  hostPort: number;
   serverUrl: string;
   playerName: string;
 };
@@ -52,8 +54,8 @@ export type ShellRPCSchema = {
   bun: {
     requests: {
       host: {
-        params: { bindHost?: string };
-        response: { url: string; bindHost: string };
+        params: { bindHost?: string; hostPort?: number };
+        response: { url: string; bindHost: string; hostPort: number };
       };
       join: { params: { serverUrl: string; playerName: string }; response: { ok: boolean } };
       discover: {

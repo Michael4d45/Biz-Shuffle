@@ -51,6 +51,7 @@ let shellWindow: BrowserWindow | null = null;
 let adminWindow: BrowserWindow | null = null;
 let server: BizShuffleServer | null = null;
 let hostedBindHost: string | null = null;
+let hostedBindPort: number | null = null;
 let clientRuntime: ClientRuntime | null = null;
 let discoveryListener: DiscoveryListener | null = null;
 const emulator = new DesktopEmulatorService();
@@ -187,6 +188,14 @@ function normalizeBindHost(raw?: string): string {
   return host;
 }
 
+function normalizeHostPort(raw?: number): number {
+  const n = raw ?? DEFAULT_PORT;
+  if (!Number.isInteger(n) || n < 0 || n > 65535) {
+    throw new Error(`Invalid port: ${raw}`);
+  }
+  return n;
+}
+
 /** URL to open admin locally (0.0.0.0 / :: are not useful in the webview). */
 function localAdminUrl(bindHost: string, port: number): string {
   if (bindHost === "0.0.0.0" || bindHost === "::" || bindHost === "[::]") {
@@ -196,29 +205,35 @@ function localAdminUrl(bindHost: string, port: number): string {
 }
 
 async function ensureServerStarted(
-  bindHost = DEFAULT_HOST
-): Promise<{ adminUrl: string; bindHost: string }> {
+  bindHost = DEFAULT_HOST,
+  hostPort = DEFAULT_PORT
+): Promise<{ adminUrl: string; bindHost: string; hostPort: number }> {
   const host = normalizeBindHost(bindHost);
+  const port = normalizeHostPort(hostPort);
   const dir = dataDir();
   seedRomsFromRepoIfEmpty(dir);
-  if (server && hostedBindHost !== host) {
-    desktopLog("bizshuffle-bun", `restarting embedded server (bind ${hostedBindHost} -> ${host})`);
+  if (server && (hostedBindHost !== host || hostedBindPort !== port)) {
+    desktopLog(
+      "bizshuffle-bun",
+      `restarting embedded server (bind ${hostedBindHost}:${hostedBindPort} -> ${host}:${port})`
+    );
     await stopServer();
   }
   if (!server) {
     const staticDir = desktopAdminStaticDir();
     desktopLog(
       "bizshuffle-bun",
-      `embedded server staticDir=${staticDir ?? "(resolve from bundle)"} bind=${host}`
+      `embedded server staticDir=${staticDir ?? "(resolve from bundle)"} bind=${host}:${port}`
     );
     server = new BizShuffleServer({
       dataDir: dir,
       host,
-      port: DEFAULT_PORT,
+      port,
       ...(staticDir ? { staticDir } : {}),
     });
     await server.start();
     hostedBindHost = host;
+    hostedBindPort = port;
     desktopLog("bizshuffle-bun", `embedded server listening at ${server.url} (bind ${host})`);
   }
   if (await syncCatalogFromRoms(server)) {
@@ -226,8 +241,8 @@ async function ensureServerStarted(
     desktopLog("bizshuffle-bun", "embedded server catalog synced from roms/");
   }
   const parsed = new URL(server.url);
-  const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
-  return { adminUrl: localAdminUrl(host, port), bindHost: host };
+  const actualPort = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
+  return { adminUrl: localAdminUrl(host, actualPort), bindHost: host, hostPort: actualPort };
 }
 
 async function stopServer(): Promise<void> {
@@ -236,6 +251,7 @@ async function stopServer(): Promise<void> {
     await server.stop();
     server = null;
     hostedBindHost = null;
+    hostedBindPort = null;
     purgeDiscoveredServer(url);
   }
 }
@@ -333,13 +349,22 @@ function defineShellRpc() {
       requests: {
         host: async (params: unknown) => {
           try {
-            const { bindHost } = params as ShellRPCSchema["bun"]["requests"]["host"]["params"];
+            const { bindHost, hostPort } =
+              params as ShellRPCSchema["bun"]["requests"]["host"]["params"];
             sendStatus("Starting server…");
-            desktopLog("bizshuffle-bun", `RPC host bind=${bindHost ?? DEFAULT_HOST}`);
-            const { adminUrl, bindHost: bound } = await ensureServerStarted(bindHost);
-            sendStatus(`Admin opened at ${adminUrl} (bound to ${bound})`);
+            desktopLog(
+              "bizshuffle-bun",
+              `RPC host bind=${bindHost ?? DEFAULT_HOST} port=${hostPort ?? DEFAULT_PORT}`
+            );
+            const {
+              adminUrl,
+              bindHost: bound,
+              hostPort: boundPort,
+            } = await ensureServerStarted(bindHost, hostPort);
+            saveShellSettings(dataDir(), { bindHost: bound, hostPort: boundPort });
+            sendStatus(`Admin opened at ${adminUrl} (bound to ${bound}:${boundPort})`);
             openAdminWindow(adminUrl);
-            return { url: adminUrl, bindHost: bound };
+            return { url: adminUrl, bindHost: bound, hostPort: boundPort };
           } catch (err) {
             desktopLog("bizshuffle-bun", `host failed: ${err}`);
             throw err;
