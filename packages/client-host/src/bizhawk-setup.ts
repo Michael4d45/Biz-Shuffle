@@ -123,13 +123,17 @@ async function downloadFile(
   if (!res.ok || !res.body) throw new Error(`download failed: ${url} (${res.status})`);
   const total = Number(res.headers.get("content-length") ?? 0);
   let done = 0;
+  let lastPct = -1;
   const reader = Readable.fromWeb(res.body as unknown as import("node:stream/web").ReadableStream);
   const out = createWriteStream(dest);
   reader.on("data", (chunk: Buffer | string) => {
     done += typeof chunk === "string" ? Buffer.byteLength(chunk) : chunk.length;
     if (total > 0 && onProgress) {
       const pct = Math.min(99, Math.round((done / total) * 100));
-      onProgress(`Downloading BizHawk… ${pct}%`, pct);
+      if (pct !== lastPct) {
+        lastPct = pct;
+        onProgress(`Downloading BizHawk… ${pct}%`, pct);
+      }
     }
   });
   await pipeline(reader, out);

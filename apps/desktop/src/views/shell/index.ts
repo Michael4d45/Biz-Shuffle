@@ -25,6 +25,7 @@ let updateState: AppUpdateState = { ...defaultUpdateState };
 let depsState: DependenciesState = { ...defaultDepsState };
 
 const rpc = Electroview.defineRPC<ShellRPCSchema>({
+  maxRequestTime: 60_000,
   handlers: {
     requests: {},
     messages: {
@@ -368,7 +369,7 @@ function patchDiscoveredServers(): void {
   wirePickServerButtons();
 }
 
-async function refreshDiscovery(): Promise<void> {
+async function refreshDiscovery(userInitiated = false): Promise<void> {
   try {
     const { servers, hostedUrl: hosted } = await rpc.request.discover({});
     discovered = servers;
@@ -382,7 +383,10 @@ async function refreshDiscovery(): Promise<void> {
     }
     render();
   } catch (e) {
-    setStatus(String(e));
+    slog(`discover failed: ${e}`);
+    if (userInitiated) {
+      setStatus("Could not refresh server list — try again in a moment.");
+    }
   }
 }
 
@@ -483,7 +487,7 @@ function render(): void {
     render();
   };
   document.getElementById("open-data")!.onclick = () => void rpc.request.openFolder({});
-  document.getElementById("refresh-disc")!.onclick = () => void refreshDiscovery();
+  document.getElementById("refresh-disc")!.onclick = () => void refreshDiscovery(true);
   wirePickServerButtons();
   wireDepsPanel();
   wireFooterButtons();
@@ -549,6 +553,6 @@ void (async () => {
   await loadShellSettingsFromDisk();
   await loadDependencies();
   await loadAppInfo();
+  await refreshDiscovery();
 })();
-void refreshDiscovery();
 setInterval(() => void refreshDiscovery(), 5000);

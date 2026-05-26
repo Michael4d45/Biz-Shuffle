@@ -56,6 +56,12 @@ export function playBlockedReason(dataDir: string): string | null {
   return snap.playBlocked ? dependenciesPlayBlockedMessage(snap) : null;
 }
 
+function logDependencyProgress(id: DependencyId, msg: string, pct?: number): void {
+  // Milestones only — per-chunk progress would flood desktop-smoke.log.
+  if (pct != null && pct !== 0 && pct < 100) return;
+  desktopLog("bizshuffle-bun", `[${id}] ${msg}`);
+}
+
 export async function installDependency(
   dataDir: string,
   id: DependencyId,
@@ -73,14 +79,18 @@ export async function installDependency(
           statusMessage: msg,
           progress: pct ?? currentState.items.find((i) => i.id === id)?.progress ?? 0,
         });
-        log?.(msg);
-        desktopLog("bizshuffle-bun", msg);
+        if (pct == null || pct === 0 || pct >= 100) {
+          log?.(msg);
+          logDependencyProgress(id, msg, pct);
+        }
       });
     } else if (id === "vcredist") {
       await installVCRedist((pct, msg) => {
         patchItem(id, { statusMessage: msg, progress: pct });
-        log?.(msg);
-        desktopLog("bizshuffle-bun", msg);
+        if (pct === 0 || pct >= 100) {
+          log?.(msg);
+          logDependencyProgress(id, msg, pct);
+        }
       });
     }
     installing.delete(id);
