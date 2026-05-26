@@ -9,12 +9,17 @@
 
 body {
   margin: 0;
+  min-height: 100vh;
 }
 
 .shell {
   padding: 1.5rem;
   max-width: 28rem;
   margin: 0 auto;
+  min-height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 header h1 {
@@ -101,4 +106,25 @@ header h1 {
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+.app-footer {
+  margin-top: auto;
+  padding-top: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: #6a7080;
+  border-top: 1px solid #1e2430;
+}
+
+.app-version {
+  flex-shrink: 0;
+}
+
+.update-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }

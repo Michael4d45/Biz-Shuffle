@@ -3,6 +3,13 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BrowserWindow, Utils, defineElectrobunRPC } from "electrobun/bun";
+import {
+  checkForUpdates,
+  getAppInfo,
+  initAppUpdates,
+  installUpdate,
+  setAppUpdateSender,
+} from "./app-updates.js";
 import { BizShuffleServer, syncCatalogFromRoms } from "@bizshuffle-bun/server-host";
 import {
   ClientRuntime,
@@ -43,15 +50,34 @@ function dataDir(): string {
   return dir;
 }
 
-function sendStatus(msg: string): void {
+function shellRpcSend():
+  | {
+      status: (payload: { msg: string }) => void;
+      updateState: (payload: ShellRPCSchema["webview"]["messages"]["updateState"]) => void;
+    }
+  | undefined {
   try {
-    const rpc = shellWindow?.webview?.rpc as
-      | { send: { status: (payload: { msg: string }) => void } }
-      | undefined;
-    rpc?.send.status({ msg });
+    return (
+      shellWindow?.webview?.rpc as
+        | {
+            send: {
+              status: (payload: { msg: string }) => void;
+              updateState: (payload: ShellRPCSchema["webview"]["messages"]["updateState"]) => void;
+            };
+          }
+        | undefined
+    )?.send;
   } catch {
-    /* shell may not be ready */
+    return undefined;
   }
+}
+
+function sendStatus(msg: string): void {
+  shellRpcSend()?.status({ msg });
+}
+
+function sendUpdateState(state: ShellRPCSchema["webview"]["messages"]["updateState"]): void {
+  shellRpcSend()?.updateState(state);
 }
 
 async function ensureServerStarted(): Promise<string> {
@@ -238,6 +264,11 @@ function defineShellRpc() {
           mkdirSync(target, { recursive: true });
           Utils.openPath(target);
         },
+        getAppInfo: async () => getAppInfo(),
+        checkForUpdates: async () => checkForUpdates(),
+        installUpdate: async () => {
+          await installUpdate();
+        },
       },
       messages: {
         diag: (payload: unknown) => {
@@ -275,6 +306,9 @@ shellWindow.on("close", () => {
 });
 
 desktopLog("bizshuffle-bun", "shell window created");
+
+setAppUpdateSender(sendUpdateState);
+initAppUpdates();
 
 async function shutdown(): Promise<void> {
   clientRuntime?.stop();

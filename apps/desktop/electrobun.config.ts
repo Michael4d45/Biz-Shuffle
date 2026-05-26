@@ -47,4 +47,7 @@ export default {
   runtime: {
     exitOnLastWindowClosed: true,
   },
+  release: {
+    baseUrl: "https://github.com/Michael4d45/Biz-Shuffle/releases/latest/download",
+  },
 } satisfies ElectrobunConfig;
