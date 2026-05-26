@@ -3,28 +3,79 @@ import { LogsCard } from "./components/LogsCard.js";
 import { PlayersCard } from "./components/PlayersCard.js";
 import { PluginsCard } from "./components/PluginsCard.js";
 import { SessionCard } from "./components/SessionCard.js";
-import { swapProgress } from "./swapDisplay.js";
+import { Badge, Button } from "./components/ui.js";
+import { formatUpdatedAt, playerCounts } from "./status.js";
+import { nextSwapDisplay, swapProgress, swapTimerActive } from "./swapDisplay.js";
 import { useAdmin } from "./useAdmin.js";
+import { useNowMs } from "./useNowMs.js";
 
 export function App() {
   const { state, log, pushLog, wsConnected, refreshState, trigger } = useAdmin();
+  const counts = playerCounts(state);
+  const timerActive = swapTimerActive(state);
+  const now = useNowMs(timerActive);
+  const progress = swapProgress(state, now);
 
   return (
-    <main className="layout">
-      <div className="progress-top" style={{ transform: `scaleX(${swapProgress(state) / 100})` }} />
+    <div className="min-h-screen">
+      <div
+        className="fixed inset-x-0 top-0 z-50 h-1 origin-left bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)] will-change-transform"
+        style={{ transform: `scaleX(${progress / 100})` }}
+        aria-hidden
+      />
 
-      <header className="row header">
-        <h1>BizShuffle Admin</h1>
-        <span className={wsConnected ? "ok" : "err"}>WS {wsConnected ? "on" : "off"}</span>
+      <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-500/90">
+              BizShuffle
+            </p>
+            <h1 className="text-lg font-semibold tracking-tight text-white">Admin Console</h1>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={state?.running ? "ok" : "err"}>
+              {state?.running ? "Session running" : "Session stopped"}
+            </Badge>
+            <Badge variant={wsConnected ? "ok" : "err"}>
+              WebSocket {wsConnected ? "live" : "offline"}
+            </Badge>
+            <Badge variant="info">Mode {state?.mode ?? "sync"}</Badge>
+            <Badge variant="neutral">Next swap {nextSwapDisplay(state, now)}</Badge>
+            <Badge variant="neutral">
+              Players {counts.ready}/{counts.online}/{counts.total}
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="hidden text-xs text-slate-500 sm:inline">
+              Updated {formatUpdatedAt(state?.updated_at)}
+            </span>
+            <Button variant="ghost" onClick={() => void refreshState()}>
+              Refresh
+            </Button>
+          </div>
+        </div>
       </header>
 
-      <div className="grid">
-        <SessionCard state={state} trigger={trigger} />
+      <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <SessionCard state={state} trigger={trigger} nowMs={now} />
+          <GamesCard
+            state={state}
+            trigger={trigger}
+            pushLog={pushLog}
+            refreshState={refreshState}
+          />
+        </div>
+
         <PlayersCard state={state} trigger={trigger} />
-        <GamesCard state={state} trigger={trigger} pushLog={pushLog} refreshState={refreshState} />
-        <PluginsCard trigger={trigger} pushLog={pushLog} />
-        <LogsCard log={log} />
-      </div>
-    </main>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <PluginsCard trigger={trigger} pushLog={pushLog} />
+          <LogsCard log={log} />
+        </div>
+      </main>
+    </div>
   );
 }
