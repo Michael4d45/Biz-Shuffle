@@ -245,7 +245,7 @@ function wireDepsPanel(): void {
 
 function wireFooterButtons(): void {
   document.getElementById("update-btn")?.addEventListener("click", () => {
-    if (updateState.downloading && !Boolean(updateState.updateReady)) return;
+    if (updateState.downloading && !updateState.updateReady) return;
     void (async () => {
       try {
         await rpc.request.installUpdate({});
