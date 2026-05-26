@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import eslintConfigPrettier from "eslint-config-prettier";
 import react from "eslint-plugin-react";
+import reactCompiler from "eslint-plugin-react-compiler";
 import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 import tseslint from "typescript-eslint";
@@ -77,6 +78,7 @@ export default tseslint.config(
     plugins: {
       react,
       "react-hooks": reactHooks,
+      "react-compiler": reactCompiler,
     },
     languageOptions: {
       globals: globals.browser,
@@ -90,6 +92,7 @@ export default tseslint.config(
     rules: {
       ...react.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
+      ...reactCompiler.configs.recommended.rules,
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
       "react/no-unescaped-entities": "off",

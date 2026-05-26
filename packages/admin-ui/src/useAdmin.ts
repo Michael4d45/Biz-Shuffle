@@ -22,20 +22,17 @@ export function useAdmin() {
     return s;
   }, []);
 
-  const trigger = useCallback(
-    async (path: string, body?: unknown) => {
-      const res = await post(path, body);
-      if (!res.ok) {
-        const detail = (await res.text()).trim();
-        pushLog(`${path} failed: ${res.status}${detail ? ` — ${detail}` : ""}`);
-      } else {
-        pushLog(`${path} ok`);
-        await refreshState();
-      }
-      return res.ok;
-    },
-    [pushLog, refreshState]
-  );
+  const trigger = async (path: string, body?: unknown) => {
+    const res = await post(path, body);
+    if (!res.ok) {
+      const detail = (await res.text()).trim();
+      pushLog(`${path} failed: ${res.status}${detail ? ` — ${detail}` : ""}`);
+    } else {
+      pushLog(`${path} ok`);
+      await refreshState();
+    }
+    return res.ok;
+  };
 
   useEffect(() => {
     void refreshState().catch((e) => pushLog(String(e)));
