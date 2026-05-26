@@ -10,12 +10,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
-import {
-  copyFileSync,
-  existsSync,
-  readdirSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const require = createRequire(import.meta.url);
@@ -52,10 +47,7 @@ function patchExeDir(binDir: string, icoPath: string): void {
       embedIcon(exe, icoPath);
       console.log(`[embed-win-icons] ${name}`);
     } catch (err) {
-      console.warn(
-        `[embed-win-icons] skipped ${name}:`,
-        err instanceof Error ? err.message : err,
-      );
+      console.warn(`[embed-win-icons] skipped ${name}:`, err instanceof Error ? err.message : err);
     }
   }
 }
@@ -69,10 +61,7 @@ function patchSetupExes(artifactDir: string, icoPath: string): void {
       embedIcon(exe, icoPath);
       console.log(`[embed-win-icons] ${name}`);
     } catch (err) {
-      console.warn(
-        `[embed-win-icons] skipped ${name}:`,
-        err instanceof Error ? err.message : err,
-      );
+      console.warn(`[embed-win-icons] skipped ${name}:`, err instanceof Error ? err.message : err);
     }
   }
 }
