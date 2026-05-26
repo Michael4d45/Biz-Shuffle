@@ -82,6 +82,7 @@ describe("save mode two-player swap", () => {
     await startClient("test", CHRONO_ID);
 
     server.updateStateAndPersist((st) => {
+      st.prevent_same_game_swap = true;
       for (const [name, instanceId, game] of [
         ["bob", BANJO_ID, "Banjo-Kazooie (USA).zip"],
         ["test", CHRONO_ID, "Chrono Trigger (USA).zip"],
@@ -95,6 +96,12 @@ describe("save mode two-player swap", () => {
       }
     });
 
+    // Let connect-time swap commands finish so performSwap is not blocked.
+    const settleDeadline = Date.now() + 15_000;
+    while (Date.now() < settleDeadline && server.pendingCommandCount > 0) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+
     await server.performSwap();
 
     expect(peers[0]!.receivedCommands).toContain("SAVE");
@@ -103,8 +110,8 @@ describe("save mode two-player swap", () => {
     const st = server.snapshotState();
     const states = (st.game_instances ?? []).map((i) => i.file_state);
     expect(states).toEqual(["ready", "ready"]);
-    expect(st.players.bob?.game).toContain("Chrono");
-    expect(st.players.test?.game).toContain("Banjo");
+    expect(st.players.bob?.instance_id).toBe(CHRONO_ID);
+    expect(st.players.test?.instance_id).toBe(BANJO_ID);
 
     expect(existsSync(savePath(hostDir, BANJO_ID))).toBe(true);
     expect(existsSync(savePath(hostDir, CHRONO_ID))).toBe(true);
