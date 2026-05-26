@@ -67,6 +67,39 @@ describe("Controller", () => {
     expect(sent.some((c) => c.cmd === "nack" && c.id === "s1")).toBe(true);
   });
 
+  it("defers swap until ipc is ready", async () => {
+    const sent: Command[] = [];
+    let ready = false;
+    const bipc = {
+      isReady: () => ready,
+      sendPause: vi.fn(),
+      sendResume: vi.fn(),
+      sendSwap: vi.fn().mockResolvedValue(undefined),
+      sendSave: vi.fn(),
+      sendMessage: vi.fn(),
+    } as unknown as BizhawkIpc;
+    const controller = new Controller({
+      dataDir: "/tmp",
+      api: mockApi("http://127.0.0.1:1"),
+      bipc,
+      pluginsDir: "/tmp/plugins",
+      send: async (cmd) => {
+        sent.push(cmd);
+      },
+    });
+    await controller.handle({
+      cmd: "swap",
+      id: "s-defer",
+      payload: { instance_id: "inst-1" },
+    });
+    expect(sent.some((c) => c.cmd === "ack")).toBe(false);
+
+    ready = true;
+    await controller.onBizhawkReady();
+    expect(bipc.sendSave).toHaveBeenCalled();
+    expect(sent.some((c) => c.cmd === "ack" && c.id === "s-defer")).toBe(true);
+  });
+
   it("acks pause with mock ipc", async () => {
     const bipc = {
       isReady: () => true,

@@ -174,33 +174,29 @@ export class WsHub {
           if (typeof pl?.bizhawk_ready === "boolean") player.bizhawk_ready = pl.bizhawk_ready;
           st.players[name] = player;
         });
-        const assigned = this.server.currentPlayer(name);
-        if (assigned.game) {
-          this.server.updateStateAndPersist((st) => {
-            const p = st.players[name];
-            if (p && !p.game) {
-              p.game = assigned.game;
-              if (assigned.instance_id) p.instance_id = assigned.instance_id;
-              st.players[name] = p;
-            }
-          });
-        }
-        this.server.broadcastGamesUpdate(this.server.currentPlayer(name));
-        this.server.sendSwap(this.server.currentPlayer(name));
-        void this.sendPing(this.server.currentPlayer(name));
+        const player = this.server.assignPlayerOnConnect(name);
+        this.server.broadcastGamesUpdate(player);
+        if (player.game) this.server.sendSwap(player);
+        void this.sendPing(player);
         return;
       }
       case "status_update": {
         const name = this.findPlayerName(client);
         const pl = cmd.payload as { bizhawk_ready?: boolean } | undefined;
         if (name && typeof pl?.bizhawk_ready === "boolean") {
+          let becameReady = false;
           this.server.updateStateAndPersist((st) => {
             const p = st.players[name];
             if (p) {
+              becameReady = pl.bizhawk_ready! && !p.bizhawk_ready;
               p.bizhawk_ready = pl.bizhawk_ready!;
               st.players[name] = p;
             }
           });
+          if (becameReady) {
+            const player = this.server.currentPlayer(name);
+            if (player.game) this.server.sendSwap(player);
+          }
         }
         return;
       }

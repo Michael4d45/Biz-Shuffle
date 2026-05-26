@@ -136,6 +136,26 @@ export class BizShuffleServer {
     return this.getGameModeHandler().getPlayer(name);
   }
 
+  /** Persist game-mode assignment for a newly connected player, if unassigned. */
+  assignPlayerOnConnect(name: string): Player {
+    const assigned = this.currentPlayer(name);
+    this.updateStateAndPersist((st) => {
+      const p = st.players[name];
+      if (!p) return;
+      let changed = false;
+      if (assigned.game && !p.game) {
+        p.game = assigned.game;
+        changed = true;
+      }
+      if (assigned.instance_id && !p.instance_id) {
+        p.instance_id = assigned.instance_id;
+        changed = true;
+      }
+      if (changed) st.players[name] = p;
+    });
+    return this.currentPlayer(name);
+  }
+
   async performSwap(): Promise<void> {
     await this.getGameModeHandler().handleSwap();
   }
@@ -174,7 +194,7 @@ export class BizShuffleServer {
       const cmd: Command = {
         cmd: "swap",
         payload,
-        id: `swap-${Date.now()}-${player.name}`,
+        id: `swap-${Date.now()}-${player.name}-${Math.random().toString(36).slice(2, 8)}`,
       };
       try {
         await this.wsHub?.sendAndWait(player, cmd);

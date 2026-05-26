@@ -25,7 +25,20 @@ export interface ControllerDeps {
 }
 
 export class Controller {
+  private pendingSwap: {
+    cmd: Command;
+    ack: (id: string) => Promise<void>;
+    nack: (id: string, reason: string) => Promise<void>;
+  } | null = null;
+
   constructor(private readonly deps: ControllerDeps) {}
+
+  async onBizhawkReady(): Promise<void> {
+    if (!this.pendingSwap) return;
+    const pending = this.pendingSwap;
+    this.pendingSwap = null;
+    await this.handleSwap(pending.cmd, pending.ack, pending.nack);
+  }
 
   async handle(cmd: Command): Promise<void> {
     const { ack, nack } = this.acks();
@@ -137,6 +150,8 @@ export class Controller {
       } catch (err) {
         await nack(cmd.id, String(err));
       }
+    } else if (this.deps.bipc) {
+      this.pendingSwap = { cmd, ack, nack };
     } else {
       await ack(cmd.id);
     }

@@ -32,6 +32,7 @@ export interface ClientRuntimeOptions {
 export class ClientRuntime {
   private ws: WsClient | null = null;
   private bipc: BizhawkIpc | null = null;
+  private controller: Controller | null = null;
   private discovery: DiscoveryListener | null = null;
   private abort: AbortController | null = null;
   private connected = false;
@@ -88,6 +89,9 @@ export class ClientRuntime {
       this.bipc = new BizhawkIpc({
         portFile,
         ...(opts.luaPort != null ? { port: opts.luaPort } : {}),
+        onReady: () => {
+          void this.onBizhawkReady();
+        },
       });
       const launched = opts.bizhawkLaunched !== false;
       if (!launched) this.bipc.setBizhawkLaunched(false);
@@ -114,6 +118,7 @@ export class ClientRuntime {
         await this.ws.send(cmd);
       },
     });
+    this.controller = controller;
 
     this.ws = new WsClient({
       wsUrl,
@@ -143,6 +148,17 @@ export class ClientRuntime {
     throw new Error("Bizhawk IPC not ready");
   }
 
+  private async onBizhawkReady(): Promise<void> {
+    if (this.ws?.isConnected()) {
+      await this.ws.send({
+        cmd: "status_update",
+        id: `status-${Date.now()}`,
+        payload: { bizhawk_ready: true },
+      });
+    }
+    await this.controller?.onBizhawkReady();
+  }
+
   setBizhawkLaunched(launched: boolean): void {
     this.bipc?.setBizhawkLaunched(launched);
   }
@@ -151,6 +167,7 @@ export class ClientRuntime {
     this.abort?.abort();
     this.ws?.stop();
     this.ws = null;
+    this.controller = null;
     this.bipc?.stop();
     this.bipc = null;
     this.discovery?.stop();

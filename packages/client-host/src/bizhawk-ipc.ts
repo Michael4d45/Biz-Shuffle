@@ -13,6 +13,8 @@ export interface BizhawkIpcOptions {
   /** Path to `lua_server_port.txt` (read on start). */
   portFile?: string;
   timeoutMs?: number;
+  /** Called when Lua sends HELLO and IPC becomes ready. */
+  onReady?: () => void;
 }
 
 type Pending = { id: string; resolve: (ok: boolean) => void; timer: ReturnType<typeof setTimeout> };
@@ -225,8 +227,10 @@ export class BizhawkIpc {
     const parts = line.split("|");
     const head = parts[0];
     if (head === MSG_HELLO) {
+      const wasReady = this.ready;
       this.ready = true;
       this.reconnectAttempt = 0;
+      if (!wasReady) this.opts.onReady?.();
       void this.processQueue();
       return;
     }
