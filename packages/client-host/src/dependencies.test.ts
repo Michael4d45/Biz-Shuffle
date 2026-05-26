@@ -1,14 +1,23 @@
 import { describe, expect, it } from "bun:test";
+import { join } from "node:path";
 import { isManagedBizHawkPath } from "./bizhawk-setup.js";
 import { getDependenciesSnapshot } from "./dependencies.js";
 
 describe("dependencies", () => {
   it("treats only managed install paths as in-scope", () => {
-    const dataDir = "C:\\Users\\me\\BizShuffle";
-    expect(isManagedBizHawkPath(dataDir, "C:\\Users\\me\\BizShuffle\\BizHawk\\EmuHawk.exe")).toBe(
-      true
+    const dataDir =
+      process.platform === "win32" ? "C:\\Users\\me\\BizShuffle" : "/home/me/BizShuffle";
+    const managedExe = join(
+      dataDir,
+      "BizHawk",
+      process.platform === "win32" ? "EmuHawk.exe" : "EmuHawk"
     );
-    expect(isManagedBizHawkPath(dataDir, "C:\\Program Files\\BizHawk\\EmuHawk.exe")).toBe(false);
+    const externalExe =
+      process.platform === "win32"
+        ? "C:\\Program Files\\BizHawk\\EmuHawk.exe"
+        : "/opt/BizHawk/EmuHawk";
+    expect(isManagedBizHawkPath(dataDir, managedExe)).toBe(true);
+    expect(isManagedBizHawkPath(dataDir, externalExe)).toBe(false);
   });
 
   it("returns no panel items when BizHawk and VC++ are satisfied", () => {

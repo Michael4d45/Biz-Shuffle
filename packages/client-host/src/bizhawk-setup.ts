@@ -1,6 +1,6 @@
 import { mkdirSync, readdirSync, existsSync, rmSync, createWriteStream } from "node:fs";
 import { execSync } from "node:child_process";
-import { basename, join, resolve } from "node:path";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { ensureDefaults, loadConfig, saveConfig } from "./config.js";
@@ -28,9 +28,9 @@ export function bizHawkInstallDir(dataDir: string): string {
 export function isManagedBizHawkPath(dataDir: string, exePath: string): boolean {
   const root = resolve(bizHawkInstallDir(dataDir));
   const normalized = resolve(exePath);
-  return (
-    normalized === root || normalized.startsWith(`${root}\\`) || normalized.startsWith(`${root}/`)
-  );
+  if (normalized === root) return true;
+  const rel = relative(root, normalized);
+  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 }
 
 function clearStaleBizhawkConfig(dataDir: string, cfg: Record<string, string>): void {
