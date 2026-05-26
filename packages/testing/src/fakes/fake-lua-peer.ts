@@ -1,11 +1,9 @@
 import { createServer, type Server, type Socket } from "node:net";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { buildMinimalBizHawkSavestate } from "@bizshuffle-bun/savestate";
 
-/** Minimal ZIP end-of-central-directory record (valid enough for save stubs). */
-export const MIN_SAVE_ZIP = Buffer.from([
-  0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-]);
+const MINIMAL_SAVE_BYTES = Buffer.from(buildMinimalBizHawkSavestate());
 
 export interface FakeLuaPeerOptions {
   /** Client data dir — writes saves under `{savesDir}/saves/`. */
@@ -63,11 +61,6 @@ export class FakeLuaPeer {
     });
   }
 
-  /** @deprecated use {@link listen} — kept for callers that dial after port file exists */
-  static async connect(opts: FakeLuaPeerOptions & { port: number }): Promise<FakeLuaPeer> {
-    return FakeLuaPeer.listen({ ...opts, port: opts.port });
-  }
-
   stop(): void {
     this.socket?.destroy();
     this.socket = null;
@@ -111,7 +104,7 @@ export class FakeLuaPeer {
     if (cmd === "SAVE") {
       const dir = join(this.opts.savesDir, "saves");
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, `${this.instanceId}.state`), MIN_SAVE_ZIP);
+      writeFileSync(join(dir, `${this.instanceId}.state`), MINIMAL_SAVE_BYTES);
     }
 
     this.socket?.write(`ACK|${id}\n`);

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
-import { MIN_SAVE_ZIP } from "../fakes/fake-lua-peer.js";
+import { buildMinimalBizHawkSavestate, buildNonBizHawkZip } from "@bizshuffle-bun/savestate";
 import { startTestServer, stopTestServer } from "../test-helpers.js";
 
 describe("save state file management integration", () => {
@@ -24,8 +24,9 @@ describe("save state file management integration", () => {
       }),
     });
 
+    const saveBytes = buildMinimalBizHawkSavestate();
     const form = new FormData();
-    form.append("save", new Blob([MIN_SAVE_ZIP]), `${instanceId}.state`);
+    form.append("save", new Blob([saveBytes]), `${instanceId}.state`);
     form.append("filename", `${instanceId}.state`);
     const upload = await fetch(`${server.url}/save/upload`, { method: "POST", body: form });
     expect(upload.status).toBe(200);
@@ -39,7 +40,7 @@ describe("save state file management integration", () => {
     const download = await fetch(`${server.url}/save/${instanceId}.state`);
     expect(download.status).toBe(200);
     const bytes = Buffer.from(await download.arrayBuffer());
-    expect(bytes.equals(MIN_SAVE_ZIP)).toBe(true);
+    expect(bytes.equals(Buffer.from(saveBytes))).toBe(true);
     expect(existsSync(join(dataDir, "saves", `${instanceId}.state`))).toBe(true);
   });
 
@@ -47,7 +48,7 @@ describe("save state file management integration", () => {
     ({ server, dataDir } = await startTestServer());
     const savesDir = join(dataDir, "saves");
     const form = new FormData();
-    form.append("save", new Blob([MIN_SAVE_ZIP]), "a.state");
+    form.append("save", new Blob([buildMinimalBizHawkSavestate()]), "a.state");
     form.append("filename", "a.state");
     await fetch(`${server.url}/save/upload`, { method: "POST", body: form });
     expect(existsSync(join(savesDir, "a.state"))).toBe(true);
@@ -80,5 +81,52 @@ describe("save state file management integration", () => {
       state: { game_instances: Array<{ id: string; file_state: string }> };
     };
     expect(st.state.game_instances.find((i) => i.id === instanceId)?.file_state).toBe("none");
+  });
+
+  it("POST /save/upload rejects invalid savestate with 422", async () => {
+    ({ server, dataDir } = await startTestServer());
+    const instanceId = "bad-save-1";
+
+    await fetch(`${server.url}/api/games`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        game_instances: [{ id: instanceId, game: "x.zip", file_state: "pending" }],
+      }),
+    });
+
+    const badZip = buildNonBizHawkZip();
+    const form = new FormData();
+    form.append("save", new Blob([badZip]), `${instanceId}.state`);
+    form.append("filename", `${instanceId}.state`);
+    const upload = await fetch(`${server.url}/save/upload`, { method: "POST", body: form });
+    expect(upload.status).toBe(422);
+    const body = (await upload.json()) as { code?: string };
+    expect(body.code).toBe("MISSING_BIZSTATE_VERSION");
+
+    const st = (await fetch(`${server.url}/state.json`).then((r) => r.json())) as {
+      state: { game_instances: Array<{ id: string; file_state: string }> };
+    };
+    expect(st.state.game_instances.find((i) => i.id === instanceId)?.file_state).toBe("pending");
+  });
+
+  it("POST /save/upload accepts minimal valid BizHawk savestate", async () => {
+    ({ server, dataDir } = await startTestServer());
+    const instanceId = "good-save-1";
+    const bytes = buildMinimalBizHawkSavestate();
+
+    await fetch(`${server.url}/api/games`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        game_instances: [{ id: instanceId, game: "x.zip", file_state: "none" }],
+      }),
+    });
+
+    const form = new FormData();
+    form.append("save", new Blob([bytes]), `${instanceId}.state`);
+    form.append("filename", `${instanceId}.state`);
+    const upload = await fetch(`${server.url}/save/upload`, { method: "POST", body: form });
+    expect(upload.status).toBe(200);
   });
 });

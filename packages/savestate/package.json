@@ -1,5 +1,5 @@
 {
-  "name": "@bizshuffle-bun/client-host",
+  "name": "@bizshuffle-bun/savestate",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,15 +12,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@bizshuffle-bun/protocol": "workspace:*",
-    "@bizshuffle-bun/savestate": "workspace:*",
-    "effect": "^3.12.5",
-    "ws": "^8.18.0"
+    "fflate": "^0.8.2",
+    "fzstd": "^0.1.1"
   },
   "devDependencies": {
-    "@bizshuffle-bun/server-host": "workspace:*",
     "@types/bun": "latest",
-    "@types/ws": "^8.5.13",
     "typescript": "^6.0.3"
   }
 }

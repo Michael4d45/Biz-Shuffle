@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@bizshuffle-bun/savestate": "workspace:*",
     "@bizshuffle-bun/domain": "workspace:*",
     "@bizshuffle-bun/protocol": "workspace:*",
     "@bizshuffle-bun/ports": "workspace:*",

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import express, { type Express, type Response } from "express";
 import multer from "multer";
 import type { MutablePlugin } from "@bizshuffle-bun/protocol";
+import { verifyBizHawkSavestate } from "@bizshuffle-bun/savestate";
 import type { BizShuffleServer } from "./server.js";
 import {
   loadPluginMetadata,
@@ -619,6 +620,16 @@ export function createHttpApp(server: BizShuffleServer): Express {
     }
     const filename = (req.body as { filename?: string }).filename ?? req.file.originalname;
     const instanceId = filename.replace(/\.state$/, "");
+    const verified = verifyBizHawkSavestate(req.file.buffer);
+    if (!verified.ok) {
+      res.status(422).json({
+        error: "INVALID_SAVESTATE",
+        code: verified.code,
+        message: verified.message,
+        detail: verified.detail,
+      });
+      return;
+    }
     const savesDir = join(dataDir, "saves");
     mkdirSync(savesDir, { recursive: true });
     writeFileSync(join(savesDir, filename), req.file.buffer);

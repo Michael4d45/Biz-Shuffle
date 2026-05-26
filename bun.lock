@@ -34,7 +34,7 @@
     },
     "apps/desktop": {
       "name": "@bizshuffle-bun/desktop",
-      "version": "0.1.0",
+      "version": "0.0.9",
       "dependencies": {
         "@bizshuffle-bun/client-host": "workspace:*",
         "@bizshuffle-bun/protocol": "workspace:*",
@@ -102,6 +102,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@bizshuffle-bun/protocol": "workspace:*",
+        "@bizshuffle-bun/savestate": "workspace:*",
         "effect": "^3.12.5",
         "ws": "^8.18.0",
       },
@@ -146,6 +147,18 @@
         "typescript": "^6.0.3",
       },
     },
+    "packages/savestate": {
+      "name": "@bizshuffle-bun/savestate",
+      "version": "0.1.0",
+      "dependencies": {
+        "fflate": "^0.8.2",
+        "fzstd": "^0.1.1",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^6.0.3",
+      },
+    },
     "packages/server-host": {
       "name": "@bizshuffle-bun/server-host",
       "version": "0.1.0",
@@ -153,6 +166,7 @@
         "@bizshuffle-bun/domain": "workspace:*",
         "@bizshuffle-bun/ports": "workspace:*",
         "@bizshuffle-bun/protocol": "workspace:*",
+        "@bizshuffle-bun/savestate": "workspace:*",
         "effect": "^3.12.5",
         "express": "^4.21.2",
         "multer": "^1.4.5-lts.1",
@@ -174,6 +188,7 @@
         "@bizshuffle-bun/domain": "workspace:*",
         "@bizshuffle-bun/ports": "workspace:*",
         "@bizshuffle-bun/protocol": "workspace:*",
+        "@bizshuffle-bun/savestate": "workspace:*",
         "@bizshuffle-bun/server-host": "workspace:*",
         "ws": "^8.18.0",
       },
@@ -250,6 +265,8 @@
     "@bizshuffle-bun/ports": ["@bizshuffle-bun/ports@workspace:packages/ports"],
 
     "@bizshuffle-bun/protocol": ["@bizshuffle-bun/protocol@workspace:packages/protocol"],
+
+    "@bizshuffle-bun/savestate": ["@bizshuffle-bun/savestate@workspace:packages/savestate"],
 
     "@bizshuffle-bun/server-app": ["@bizshuffle-bun/server-app@workspace:apps/server"],
 
@@ -678,6 +695,8 @@
     "function.prototype.name": ["function.prototype.name@1.1.8", "", { "dependencies": { "call-bind": "^1.0.8", "call-bound": "^1.0.3", "define-properties": "^1.2.1", "functions-have-names": "^1.2.3", "hasown": "^2.0.2", "is-callable": "^1.2.7" } }, "sha512-e5iwyodOHhbMr/yNrc7fDYG4qlbIvI5gajyzPnb5TCwyhjApznQh1BMFou9b30SevY43gCJKXycoCBjMbsuW0Q=="],
 
     "functions-have-names": ["functions-have-names@1.2.3", "", {}, "sha512-xckBUXyTIqT97tq2x2AMb+g163b5JFysYk0x4qxNFwbfQkmNZoiRHb6sPzI9/QV33WeuvVYBUIiD4NzNIyqaRQ=="],
+
+    "fzstd": ["fzstd@0.1.1", "", {}, "sha512-dkuVSOKKwh3eas5VkJy1AW1vFpet8TA/fGmVA5krThl8YcOVE/8ZIoEA1+U1vEn5ckxxhLirSdY837azmbaNHA=="],
 
     "generator-function": ["generator-function@2.0.1", "", {}, "sha512-SFdFmIJi+ybC0vjlHN0ZGVGHc3lgE0DxPAT0djjVg+kjOnSqclqmj0KQ7ykTOLP6YxoqOvuAODGdcHJn+43q3g=="],
 

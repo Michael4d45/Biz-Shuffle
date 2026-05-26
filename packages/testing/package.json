@@ -11,6 +11,7 @@
     "test:integration": "bun test src/integration"
   },
   "dependencies": {
+    "@bizshuffle-bun/savestate": "workspace:*",
     "@bizshuffle-bun/client-host": "workspace:*",
     "@bizshuffle-bun/domain": "workspace:*",
     "@bizshuffle-bun/ports": "workspace:*",

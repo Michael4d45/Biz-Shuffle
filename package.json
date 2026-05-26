@@ -12,7 +12,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "bun run --filter '@bizshuffle-bun/protocol' test && bun run --filter '@bizshuffle-bun/domain' test && bun run --filter '@bizshuffle-bun/server-host' test && bun run --filter '@bizshuffle-bun/testing' test",
+    "test": "bun run --filter '@bizshuffle-bun/protocol' test && bun run --filter '@bizshuffle-bun/savestate' test && bun run --filter '@bizshuffle-bun/domain' test && bun run --filter '@bizshuffle-bun/server-host' test && bun run --filter '@bizshuffle-bun/testing' test",
     "test:contract": "bun run --filter '@bizshuffle-bun/testing' test:contract",
     "test:e2e": "bun run --filter '@bizshuffle-bun/testing' test:e2e",
     "test:integration": "bun run --filter '@bizshuffle-bun/testing' test:integration",

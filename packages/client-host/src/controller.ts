@@ -1,11 +1,15 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "@bizshuffle-bun/protocol";
+import { verifyBizHawkSavestate } from "@bizshuffle-bun/savestate";
 import type { BizhawkIpc } from "./bizhawk-ipc.js";
 import type { ClientApiPort } from "./api.js";
 import { ensureFile, ensureSaveFile } from "./downloads.js";
+import { isSaveUploadRejected } from "./save-upload.js";
 import type { SendFn } from "./ws-client.js";
 import { PluginSyncManager } from "./plugin-sync.js";
+
+const MAX_SAVE_ATTEMPTS = 3;
 
 async function waitForLocalSave(path: string, timeoutMs = 5000): Promise<Buffer> {
   const deadline = Date.now() + timeoutMs;
@@ -231,14 +235,32 @@ export class Controller {
       await nack(cmd.id, "IPC not ready");
       return;
     }
-    try {
-      await this.deps.bipc.sendSave();
-      const savePath = join(this.deps.dataDir, "saves", `${instanceId}.state`);
-      const data = await waitForLocalSave(savePath);
-      await this.deps.api.uploadSave(instanceId, data);
-      await ack(cmd.id);
-    } catch (err) {
-      await nack(cmd.id, String(err));
+    const savePath = join(this.deps.dataDir, "saves", `${instanceId}.state`);
+
+    for (let attempt = 1; attempt <= MAX_SAVE_ATTEMPTS; attempt++) {
+      try {
+        await this.deps.bipc.sendSave();
+        const data = await waitForLocalSave(savePath);
+        const verified = verifyBizHawkSavestate(data);
+        if (!verified.ok) {
+          if (existsSync(savePath)) unlinkSync(savePath);
+          if (attempt === MAX_SAVE_ATTEMPTS) {
+            await nack(cmd.id, `invalid save (${verified.code}): ${verified.message}`);
+            return;
+          }
+          continue;
+        }
+
+        await this.deps.api.uploadSave(instanceId, data);
+        await ack(cmd.id);
+        return;
+      } catch (err) {
+        if (existsSync(savePath)) unlinkSync(savePath);
+        const retry = isSaveUploadRejected(err) && attempt < MAX_SAVE_ATTEMPTS;
+        if (retry) continue;
+        await nack(cmd.id, String(err));
+        return;
+      }
     }
   }
 }

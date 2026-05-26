@@ -1,4 +1,5 @@
 import type { ServerState } from "@bizshuffle-bun/protocol";
+import { parseSaveUploadRejected } from "./save-upload.js";
 
 export interface ClientApiPort {
   readonly baseUrl: string;
@@ -35,6 +36,8 @@ export class ClientApi implements ClientApiPort {
     const res = await this.fetchFn(`${this.baseUrl}/save/upload`, { method: "POST", body: form });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
+      const rejected = parseSaveUploadRejected(res.status, text);
+      if (rejected) throw rejected;
       throw new Error(`save upload failed: ${res.status} ${text}`);
     }
   }
