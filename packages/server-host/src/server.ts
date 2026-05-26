@@ -18,7 +18,6 @@ import { createDiscoveryBroadcaster, type DiscoveryBroadcaster } from "./discove
 import { createHttpApp } from "./http.js";
 import { resolveAdminStaticDir } from "./static-path.js";
 import { syncCatalogFromRoms } from "./rom-catalog.js";
-
 export class BizShuffleServer {
   readonly session = new ServerSession();
   readonly persistence: Persistence;
@@ -32,7 +31,6 @@ export class BizShuffleServer {
   readonly adminStaticDir: string;
   private listenHost = "127.0.0.1";
   private listenPort = 8080;
-
   constructor(config?: Partial<ServerConfig>) {
     this.dataDir = config?.dataDir ?? ".";
     if (config?.host) this.listenHost = config.host;

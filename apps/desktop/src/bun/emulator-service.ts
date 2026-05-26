@@ -9,7 +9,7 @@ export interface DesktopEmulatorOptions {
   mock?: boolean;
 }
 
-/** Spawns BizHawk (EmuHawk) for Host & Play — desktop main process only. */
+/** Spawns BizHawk (EmuHawk) when joining a session — desktop main process only. */
 export class DesktopEmulatorService {
   private proc: ChildProcess | null = null;
   private healthState: EmulatorState = "stopped";

@@ -56,9 +56,52 @@ export class DiscoveryListener {
     this.discovered.clear();
   }
 
-  getDiscovered(): DiscoveredServer[] {
+  /** Drop stale entries from the cache (not only hide them in results). */
+  pruneExpired(now = Date.now()): void {
     const maxAge = this.config.listen_timeout_sec * 1000;
+    for (const [id, s] of this.discovered) {
+      const ts = new Date(s.message.timestamp).getTime();
+      if (now - ts > maxAge) this.discovered.delete(id);
+    }
+  }
+
+  removeByEndpoint(host: string, port: number): void {
+    for (const [id, s] of this.discovered) {
+      if (s.message.host === host && s.message.port === port) {
+        this.discovered.delete(id);
+      }
+    }
+  }
+
+  /** Remove cached servers on the same port as a local host URL (127.0.0.1 / localhost / ::1). */
+  removeLocalPort(port: number): void {
+    const localHosts = new Set(["127.0.0.1", "localhost", "::1"]);
+    for (const [id, s] of this.discovered) {
+      if (s.message.port === port && localHosts.has(s.message.host)) {
+        this.discovered.delete(id);
+      }
+    }
+  }
+
+  removeMatchingUrl(url: string): void {
+    try {
+      const u = new URL(url);
+      const port = Number(u.port) || (u.protocol === "https:" ? 443 : 80);
+      const localHosts = new Set(["127.0.0.1", "localhost", "::1"]);
+      if (localHosts.has(u.hostname)) {
+        this.removeLocalPort(port);
+        return;
+      }
+      this.removeByEndpoint(u.hostname, port);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  getDiscovered(): DiscoveredServer[] {
     const now = Date.now();
+    this.pruneExpired(now);
+    const maxAge = this.config.listen_timeout_sec * 1000;
     return [...this.discovered.values()].filter((s) => {
       const ts = new Date(s.message.timestamp).getTime();
       return now - ts <= maxAge;

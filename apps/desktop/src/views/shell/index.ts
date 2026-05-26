@@ -53,12 +53,23 @@ slog("view script loaded");
 new Electroview({ rpc });
 slog("Electroview constructed");
 
+const BIND_HOST_STORAGE_KEY = "bizshuffle-bind-host";
+const DEFAULT_BIND_HOST = "127.0.0.1";
+
 let busy = false;
 let view: "welcome" | "join" = "welcome";
 let serverUrl = "http://127.0.0.1:8080";
 let playerName = "";
+let bindHost = DEFAULT_BIND_HOST;
 let statusLine = "";
-let discovered: { label: string; url: string }[] = [];
+let discovered: { label: string; url: string; isHosted: boolean }[] = [];
+
+try {
+  const saved = localStorage.getItem(BIND_HOST_STORAGE_KEY);
+  if (saved) bindHost = saved;
+} catch {
+  /* private mode */
+}
 
 const root = document.getElementById("root");
 if (!root) {
@@ -112,7 +123,7 @@ function depsPanelHtml(): string {
 
   const blocked =
     depsState.playBlocked && !depsState.items.some((i) => i.installing)
-      ? `<p class="deps-hint">Install or update the items above before Join or Host &amp; Play.</p>`
+      ? `<p class="deps-hint">Install or update the items above before joining.</p>`
       : "";
 
   return `<section class="deps-panel" id="deps-panel">${rows}${blocked}</section>`;
@@ -202,10 +213,8 @@ function patchFooter(): void {
 
 function updatePlayButtons(): void {
   const blocked = depsState.playBlocked || depsState.checking;
-  for (const id of ["go-join", "host-play"]) {
-    const el = document.getElementById(id) as HTMLButtonElement | null;
-    if (el) el.disabled = blocked || busy;
-  }
+  const goJoin = document.getElementById("go-join") as HTMLButtonElement | null;
+  if (goJoin) goJoin.disabled = blocked || busy;
   const joinSubmit = document.querySelector(
     ".join-form button[type=submit]"
   ) as HTMLButtonElement | null;
@@ -247,13 +256,44 @@ async function loadAppInfo(): Promise<void> {
   }
 }
 
+function discoveredServersHtml(selectable: boolean, onWelcome = false): string {
+  if (discovered.length === 0) {
+    return `<p class="discovered-empty">No servers discovered yet. Use a server URL below or refresh.</p>`;
+  }
+  const items = discovered
+    .map((d) => {
+      const hosted = d.isHosted ? ' <span class="hosted-badge">(hosting)</span>' : "";
+      if (selectable) {
+        const pickClass = onWelcome ? "link pick-server-welcome" : "link pick-server";
+        return `<li><button type="button" class="${pickClass}" data-url="${escapeHtml(d.url)}">${escapeHtml(d.label)} (${escapeHtml(d.url)})${hosted}</button></li>`;
+      }
+      return `<li>${escapeHtml(d.label)} (${escapeHtml(d.url)})${hosted}</li>`;
+    })
+    .join("");
+  return `<div class="discovered"><span>Servers on LAN:</span><ul>${items}</ul></div>`;
+}
+
+function wirePickServerButtons(): void {
+  document.querySelectorAll(".pick-server").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      serverUrl = (btn as HTMLButtonElement).dataset.url ?? serverUrl;
+      render();
+    });
+  });
+  document.querySelectorAll(".pick-server-welcome").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      serverUrl = (btn as HTMLButtonElement).dataset.url ?? serverUrl;
+      view = "join";
+      render();
+    });
+  });
+}
+
 async function refreshDiscovery(): Promise<void> {
   try {
-    const list = await rpc.request.discover({});
-    discovered = list.map((m) => ({
-      label: m.server_name || m.server_id,
-      url: `http://${m.host}:${m.port}`,
-    }));
+    const { servers, hostedUrl: hosted } = await rpc.request.discover({});
+    discovered = servers;
+    if (!serverUrl && hosted) serverUrl = hosted;
     render();
   } catch (e) {
     setStatus(String(e));
@@ -270,15 +310,7 @@ function render(): void {
   const footer = footerHtml();
 
   if (view === "join") {
-    const disc =
-      discovered.length > 0
-        ? `<div class="discovered"><span>Discovered:</span><ul>${discovered
-            .map(
-              (d) =>
-                `<li><button type="button" class="link pick-server" data-url="${escapeHtml(d.url)}">${escapeHtml(d.label)} (${escapeHtml(d.url)})</button></li>`
-            )
-            .join("")}</ul></div>`
-        : "";
+    const disc = discoveredServersHtml(true);
     root.innerHTML = `
       <div class="shell">
         <header>
@@ -303,33 +335,33 @@ function render(): void {
       e.preventDefault();
       void onJoin();
     };
-    document.querySelectorAll(".pick-server").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        serverUrl = (btn as HTMLButtonElement).dataset.url ?? serverUrl;
-        render();
-      });
-    });
+    wirePickServerButtons();
     wireDepsPanel();
     wireFooterButtons();
     updatePlayButtons();
     return;
   }
 
+  const disc = discoveredServersHtml(true, true);
   root.innerHTML = `
     <div class="shell">
       <header>
         <h1>BizShuffle</h1>
-        <p class="tagline">Host a session, join a friend, or do both.</p>
+        <p class="tagline">Host a session or join one as a player.</p>
       </header>
       ${deps}
       <div class="actions">
         <button type="button" id="host" ${busy ? "disabled" : ""}>Host</button>
         <button type="button" id="go-join" ${busy || depsState.playBlocked ? "disabled" : ""}>Join</button>
-        <button type="button" id="host-play" ${busy || depsState.playBlocked ? "disabled" : ""}>Host &amp; Play</button>
       </div>
-      <label class="inline-name">Player name (Host &amp; Play)
-        <input id="inline-name" value="${escapeHtml(playerName)}" placeholder="Host" ${busy ? "disabled" : ""} />
-      </label>
+      <details class="host-advanced">
+        <summary>Host options</summary>
+        <label class="bind-host-label">Bind address
+          <input id="bind-host" value="${escapeHtml(bindHost)}" placeholder="${DEFAULT_BIND_HOST}" ${busy ? "disabled" : ""} />
+        </label>
+        <p class="bind-host-hint"><code>127.0.0.1</code> — local only. <code>0.0.0.0</code> — accept LAN connections.</p>
+      </details>
+      ${disc}
       <div class="footer-actions">
         <button type="button" class="link" id="open-data">Open data folder</button>
         <button type="button" class="link" id="refresh-disc">Refresh discovery</button>
@@ -339,16 +371,21 @@ function render(): void {
     </div>`;
 
   document.getElementById("host")!.onclick = () => void onHost();
+  document.getElementById("bind-host")!.addEventListener("input", (e) => {
+    bindHost = (e.target as HTMLInputElement).value;
+    try {
+      localStorage.setItem(BIND_HOST_STORAGE_KEY, bindHost);
+    } catch {
+      /* ignore */
+    }
+  });
   document.getElementById("go-join")!.onclick = () => {
     view = "join";
     render();
   };
-  document.getElementById("host-play")!.onclick = () => void onHostAndPlay();
   document.getElementById("open-data")!.onclick = () => void rpc.request.openFolder({});
   document.getElementById("refresh-disc")!.onclick = () => void refreshDiscovery();
-  document.getElementById("inline-name")!.oninput = (e) => {
-    playerName = (e.target as HTMLInputElement).value;
-  };
+  wirePickServerButtons();
   wireDepsPanel();
   wireFooterButtons();
   updatePlayButtons();
@@ -356,33 +393,19 @@ function render(): void {
 }
 
 async function onHost(): Promise<void> {
+  const bindInput = document.getElementById("bind-host") as HTMLInputElement | null;
+  bindHost = bindInput?.value.trim() || DEFAULT_BIND_HOST;
+  try {
+    localStorage.setItem(BIND_HOST_STORAGE_KEY, bindHost);
+  } catch {
+    /* ignore */
+  }
   busy = true;
   setStatus("Starting host…");
   render();
   try {
-    const { url } = await rpc.request.host({});
-    setStatus(`Admin opened at ${url}`);
-  } catch (e) {
-    setStatus(String(e));
-  } finally {
-    busy = false;
-    render();
-  }
-}
-
-async function onHostAndPlay(): Promise<void> {
-  const blocked = playBlockedClientMessage();
-  if (blocked) {
-    setStatus(blocked);
-    return;
-  }
-  const name = playerName.trim() || "Host";
-  busy = true;
-  setStatus("Starting Host & Play…");
-  render();
-  try {
-    const { url } = await rpc.request.hostAndPlay({ playerName: name });
-    setStatus(`Host & Play ready — ${url}`);
+    const { url, bindHost: bound } = await rpc.request.host({ bindHost });
+    setStatus(`Admin opened at ${url} (listening on ${bound})`);
   } catch (e) {
     setStatus(String(e));
   } finally {

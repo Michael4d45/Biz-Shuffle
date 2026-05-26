@@ -18,6 +18,7 @@ import {
   setDependenciesSender,
 } from "./dependencies.js";
 import { BizShuffleServer, syncCatalogFromRoms } from "@bizshuffle-bun/server-host";
+import type { DiscoveredServerEntry } from "../shared/rpc.js";
 import {
   ClientRuntime,
   DiscoveryListener,
@@ -47,6 +48,7 @@ const CLIENT_CONNECT_TIMEOUT_MS = 30_000;
 let shellWindow: BrowserWindow | null = null;
 let adminWindow: BrowserWindow | null = null;
 let server: BizShuffleServer | null = null;
+let hostedBindHost: string | null = null;
 let clientRuntime: ClientRuntime | null = null;
 let discoveryListener: DiscoveryListener | null = null;
 const emulator = new DesktopEmulatorService();
@@ -111,36 +113,153 @@ function depProgress(msg: string): void {
   desktopLog("bizshuffle-bun", msg);
 }
 
-async function ensureServerStarted(): Promise<string> {
+function normalizeServerUrl(url: string): string {
+  return url.replace(/\/$/, "");
+}
+
+function isLocalhostHost(host: string): boolean {
+  return host === "127.0.0.1" || host === "localhost" || host === "::1";
+}
+
+function serverUrlsMatch(a: string, b: string): boolean {
+  try {
+    const ua = new URL(a);
+    const ub = new URL(b);
+    if (ua.port !== ub.port) return false;
+    return isLocalhostHost(ua.hostname) && isLocalhostHost(ub.hostname);
+  } catch {
+    return normalizeServerUrl(a) === normalizeServerUrl(b);
+  }
+}
+
+function ensureDiscoveryListener(): DiscoveryListener {
+  if (!discoveryListener) {
+    discoveryListener = new DiscoveryListener();
+    discoveryListener.start();
+  }
+  return discoveryListener;
+}
+
+function purgeDiscoveredServer(url: string): void {
+  discoveryListener?.removeMatchingUrl(url);
+}
+
+async function stopHostingSession(): Promise<void> {
+  const hostedUrl = server?.url;
+  clientRuntime?.stop();
+  clientRuntime = null;
+  emulator.stop();
+  await stopServer();
+  if (hostedUrl) purgeDiscoveredServer(hostedUrl);
+  sendStatus("Host stopped");
+}
+
+async function getDiscoveredServers(): Promise<DiscoveredServerEntry[]> {
+  ensureDiscoveryListener();
+  discoveryListener!.pruneExpired();
+  const hosted = server?.url ?? null;
+  const entries = discoveryListener!.getDiscovered().map((s) => {
+    const url = `http://${s.message.host}:${s.message.port}`;
+    return {
+      label: s.message.server_name || s.message.server_id,
+      url,
+      isHosted: hosted ? serverUrlsMatch(url, hosted) : false,
+    };
+  });
+  if (hosted && !entries.some((e) => e.isHosted)) {
+    entries.unshift({
+      label: server?.getServerName() ?? "This session",
+      url: hosted,
+      isHosted: true,
+    });
+  }
+  return entries;
+}
+
+function normalizeBindHost(raw?: string): string {
+  const host = (raw ?? DEFAULT_HOST).trim();
+  if (!host) return DEFAULT_HOST;
+  if (!/^[\da-fA-F:.%-]+$/.test(host)) {
+    throw new Error(`Invalid bind address: ${host}`);
+  }
+  return host;
+}
+
+/** URL to open admin locally (0.0.0.0 / :: are not useful in the webview). */
+function localAdminUrl(bindHost: string, port: number): string {
+  if (bindHost === "0.0.0.0" || bindHost === "::" || bindHost === "[::]") {
+    return `http://127.0.0.1:${port}`;
+  }
+  return `http://${bindHost}:${port}`;
+}
+
+async function ensureServerStarted(
+  bindHost = DEFAULT_HOST
+): Promise<{ adminUrl: string; bindHost: string }> {
+  const host = normalizeBindHost(bindHost);
   const dir = dataDir();
   seedRomsFromRepoIfEmpty(dir);
+  if (server && hostedBindHost !== host) {
+    desktopLog("bizshuffle-bun", `restarting embedded server (bind ${hostedBindHost} -> ${host})`);
+    await stopServer();
+  }
   if (!server) {
     const staticDir = desktopAdminStaticDir();
     desktopLog(
       "bizshuffle-bun",
-      `embedded server staticDir=${staticDir ?? "(resolve from bundle)"}`
+      `embedded server staticDir=${staticDir ?? "(resolve from bundle)"} bind=${host}`
     );
     server = new BizShuffleServer({
       dataDir: dir,
-      host: DEFAULT_HOST,
+      host,
       port: DEFAULT_PORT,
       ...(staticDir ? { staticDir } : {}),
     });
     await server.start();
-    desktopLog("bizshuffle-bun", `embedded server listening at ${server.url}`);
+    hostedBindHost = host;
+    desktopLog("bizshuffle-bun", `embedded server listening at ${server.url} (bind ${host})`);
   }
   if (await syncCatalogFromRoms(server)) {
     server.broadcastGamesUpdate();
     desktopLog("bizshuffle-bun", "embedded server catalog synced from roms/");
   }
-  return server.url;
+  const parsed = new URL(server.url);
+  const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
+  return { adminUrl: localAdminUrl(host, port), bindHost: host };
 }
 
 async function stopServer(): Promise<void> {
   if (server) {
+    const url = server.url;
     await server.stop();
     server = null;
+    hostedBindHost = null;
+    purgeDiscoveredServer(url);
   }
+}
+
+async function joinWithEmulator(serverUrl: string, playerName: string): Promise<void> {
+  const dir = dataDir();
+  assertPlayReady(dir);
+  sendStatus("Stopping previous player session…");
+  clientRuntime?.stop();
+  clientRuntime = null;
+  emulator.stop();
+  await new Promise((r) => setTimeout(r, 300));
+  sendStatus("Checking BizHawk…");
+  const emuPath = await ensureBizHawkReady(dir, { progress: depProgress });
+  refreshDependencies(dir);
+  sendStatus("Reserving Lua IPC port…");
+  const luaPort = await reserveLuaPort();
+  const portFile = join(dir, "lua_server_port.txt");
+  writeLuaPortFile(portFile, luaPort);
+  desktopLog("bizshuffle-bun", `lua IPC port ${luaPort} written to ${portFile}`);
+  sendStatus("Launching BizHawk…");
+  desktopLog("bizshuffle-bun", `launching BizHawk at ${emuPath}`);
+  await emulator.launch(dir, emuPath, SERVER_LUA_CANDIDATES);
+  sendStatus(`Joining ${serverUrl} as ${playerName}…`);
+  await startClient(serverUrl, playerName, { luaPort });
+  sendStatus(`Connected as ${playerName}`);
 }
 
 function openAdminWindow(url: string): void {
@@ -170,6 +289,7 @@ function openAdminWindow(url: string): void {
 
   adminWindow.on("close", () => {
     adminWindow = null;
+    void stopHostingSession();
   });
 }
 
@@ -209,14 +329,15 @@ function defineShellRpc() {
     maxRequestTime: 60_000,
     handlers: {
       requests: {
-        host: async () => {
+        host: async (params: unknown) => {
           try {
+            const { bindHost } = params as ShellRPCSchema["bun"]["requests"]["host"]["params"];
             sendStatus("Starting server…");
-            desktopLog("bizshuffle-bun", "RPC host");
-            const url = await ensureServerStarted();
-            sendStatus(`Admin opened at ${url}`);
-            openAdminWindow(url);
-            return { url };
+            desktopLog("bizshuffle-bun", `RPC host bind=${bindHost ?? DEFAULT_HOST}`);
+            const { adminUrl, bindHost: bound } = await ensureServerStarted(bindHost);
+            sendStatus(`Admin opened at ${adminUrl} (bound to ${bound})`);
+            openAdminWindow(adminUrl);
+            return { url: adminUrl, bindHost: bound };
           } catch (err) {
             desktopLog("bizshuffle-bun", `host failed: ${err}`);
             throw err;
@@ -225,61 +346,20 @@ function defineShellRpc() {
         join: async (params: unknown) => {
           const { serverUrl, playerName } =
             params as ShellRPCSchema["bun"]["requests"]["join"]["params"];
-          const dir = dataDir();
-          assertPlayReady(dir);
-          sendStatus("Checking BizHawk…");
-          await ensureBizHawkReady(dir, { progress: depProgress });
-          refreshDependencies(dir);
-          sendStatus(`Joining ${serverUrl} as ${playerName}…`);
-          await startClient(serverUrl, playerName);
-          sendStatus(`Connected as ${playerName}`);
-          return { ok: true };
-        },
-        hostAndPlay: async (params: unknown) => {
-          const { playerName } =
-            params as ShellRPCSchema["bun"]["requests"]["hostAndPlay"]["params"];
           try {
-            desktopLog("bizshuffle-bun", `RPC hostAndPlay player=${playerName}`);
-            sendStatus("Host & Play: starting server…");
-            const url = await ensureServerStarted();
-            const dir = dataDir();
-            sendStatus("Host & Play: stopping previous session…");
-            clientRuntime?.stop();
-            clientRuntime = null;
-            emulator.stop();
-            await new Promise((r) => setTimeout(r, 300));
-            assertPlayReady(dir);
-            sendStatus("Checking BizHawk…");
-            const emuPath = await ensureBizHawkReady(dir, { progress: depProgress });
-            refreshDependencies(dir);
-            sendStatus("Host & Play: reserving Lua IPC port…");
-            const luaPort = await reserveLuaPort();
-            const portFile = join(dir, "lua_server_port.txt");
-            writeLuaPortFile(portFile, luaPort);
-            desktopLog("bizshuffle-bun", `lua IPC port ${luaPort} written to ${portFile}`);
-            sendStatus("Host & Play: launching BizHawk…");
-            desktopLog("bizshuffle-bun", `launching BizHawk at ${emuPath}`);
-            await emulator.launch(dir, emuPath, SERVER_LUA_CANDIDATES);
-            desktopLog("bizshuffle-bun", `BizHawk running pid=${emulator.exePath ?? emuPath}`);
-            sendStatus("Host & Play: connecting client…");
-            await startClient(url, playerName, { luaPort });
-            sendStatus(`Host & Play ready — admin at ${url}`);
-            openAdminWindow(url);
-            desktopLog("bizshuffle-bun", `hostAndPlay complete ${url}`);
-            return { url };
+            desktopLog("bizshuffle-bun", `RPC join ${serverUrl} as ${playerName}`);
+            await joinWithEmulator(serverUrl, playerName);
+            return { ok: true };
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            desktopLog("bizshuffle-bun", `hostAndPlay failed: ${msg}`);
+            desktopLog("bizshuffle-bun", `join failed: ${msg}`);
             sendStatus(`Error: ${msg}`);
             throw err;
           }
         },
         discover: async () => {
-          if (!discoveryListener) {
-            discoveryListener = new DiscoveryListener();
-            discoveryListener.start();
-          }
-          return discoveryListener.getDiscovered().map((s) => s.message);
+          const servers = await getDiscoveredServers();
+          return { hostedUrl: server?.url ?? null, servers };
         },
         getDataDir: async () => dataDir(),
         openFolder: async (params: unknown) => {
@@ -359,4 +439,4 @@ async function shutdown(): Promise<void> {
 process.on("SIGINT", () => void shutdown().then(() => process.exit(0)));
 process.on("SIGTERM", () => void shutdown().then(() => process.exit(0)));
 
-desktopLog("bizshuffle-bun", "desktop ready — Host / Join / Host & Play in shell window");
+desktopLog("bizshuffle-bun", "desktop ready — Host / Join in shell window");

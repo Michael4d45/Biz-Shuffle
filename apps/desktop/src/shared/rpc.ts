@@ -1,6 +1,11 @@
-import type { DiscoveryMessage } from "@bizshuffle-bun/protocol";
 import type { DependencyId, DependencyStatus } from "@bizshuffle-bun/client-host";
 import type { ElectrobunRPCSchema } from "electrobun/bun";
+
+export type DiscoveredServerEntry = {
+  label: string;
+  url: string;
+  isHosted: boolean;
+};
 
 /** One row in the shell dependencies panel (BizHawk, VC++ runtime, …). */
 export type DependencyUiItem = {
@@ -39,10 +44,15 @@ export type AppUpdateState = {
 export type ShellRPCSchema = {
   bun: {
     requests: {
-      host: { params: Record<string, never>; response: { url: string } };
+      host: {
+        params: { bindHost?: string };
+        response: { url: string; bindHost: string };
+      };
       join: { params: { serverUrl: string; playerName: string }; response: { ok: boolean } };
-      hostAndPlay: { params: { playerName: string }; response: { url: string } };
-      discover: { params: Record<string, never>; response: DiscoveryMessage[] };
+      discover: {
+        params: Record<string, never>;
+        response: { hostedUrl: string | null; servers: DiscoveredServerEntry[] };
+      };
       getDataDir: { params: Record<string, never>; response: string };
       openFolder: { params: { subpath?: string }; response: void };
       getAppInfo: { params: Record<string, never>; response: AppUpdateState };
