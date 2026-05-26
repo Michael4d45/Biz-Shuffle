@@ -1,85 +1,69 @@
 import { mkdirSync, readdirSync, existsSync, rmSync, createWriteStream } from "node:fs";
 import { execSync } from "node:child_process";
-import { homedir } from "node:os";
-import { basename, isAbsolute, join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { ensureDefaults, loadConfig, saveConfig } from "./config.js";
+import {
+  BizHawkVersionError,
+  SUPPORTED_BIZHAWK_VERSION,
+  bizHawkNeedsUpdate,
+  detectInstalledBizHawkVersion,
+  type BizHawkStatus,
+} from "./bizhawk-version.js";
 
-const FALLBACK_WIN_URL =
-  "https://github.com/TASEmulators/BizHawk/releases/download/2.10/BizHawk-2.10-win-x64.zip";
+function fallbackBizHawkDownloadUrl(version: string): string {
+  const tag = version.replace(/^v/, "");
+  const suffix = process.platform === "win32" ? "win-x64" : "linux-x64";
+  return `https://github.com/TASEmulators/BizHawk/releases/download/${tag}/BizHawk-${tag}-${suffix}.zip`;
+}
 
 type GhRelease = { tag_name: string; assets: { name: string; browser_download_url: string }[] };
 
-function tryPath(candidate: string, tried: string[]): string | null {
-  const p = resolve(candidate);
-  tried.push(p);
-  return existsSync(p) ? p : null;
+/** Managed BizHawk install root: `{dataDir}/BizHawk`. */
+export function bizHawkInstallDir(dataDir: string): string {
+  return join(dataDir, "BizHawk");
 }
 
-/** Locate existing EmuHawk.exe without downloading. */
+export function isManagedBizHawkPath(dataDir: string, exePath: string): boolean {
+  const root = resolve(bizHawkInstallDir(dataDir));
+  const normalized = resolve(exePath);
+  return (
+    normalized === root || normalized.startsWith(`${root}\\`) || normalized.startsWith(`${root}/`)
+  );
+}
+
+function clearStaleBizhawkConfig(dataDir: string, cfg: Record<string, string>): void {
+  const path = cfg.bizhawk_path?.trim();
+  if (!path) return;
+  if (!isManagedBizHawkPath(dataDir, path)) {
+    delete cfg.bizhawk_path;
+    saveConfig(dataDir, cfg);
+  }
+}
+
+/** Locate EmuHawk.exe only under `{dataDir}/BizHawk` (no system-wide search). */
 export function resolveEmuHawkPath(dataDir: string): string {
-  const tried: string[] = [];
   const cfg = loadConfig(dataDir);
   ensureDefaults(cfg);
+  clearStaleBizhawkConfig(dataDir, cfg);
 
-  const candidates: string[] = [];
-  if (process.env.BIZSHUFFLE_EMUHAWK_PATH) candidates.push(process.env.BIZSHUFFLE_EMUHAWK_PATH);
-  if (process.env.BIZHAWK_PATH) candidates.push(process.env.BIZHAWK_PATH);
-  if (cfg.bizhawk_path) candidates.push(cfg.bizhawk_path);
-
-  const installDir = join(dataDir, "BizHawk");
-  const roots = [
-    installDir,
-    dataDir,
-    join(homedir(), "BizShuffle", "BizHawk"),
-    "C:\\Program Files\\BizHawk",
-  ];
-  for (const root of roots) {
-    candidates.push(join(root, "EmuHawk.exe"));
-    const nested = findEmuHawkInDir(root);
-    if (nested) candidates.push(nested);
+  const installDir = bizHawkInstallDir(dataDir);
+  const exe = findEmuHawkInDir(installDir);
+  if (!exe) {
+    throw new Error(`BizHawk (EmuHawk.exe) not found under ${installDir}`);
   }
+  return persistBizhawkPath(dataDir, cfg, exe);
+}
 
-  const projectsDir = join(homedir(), "Projects");
-  if (existsSync(projectsDir)) {
-    for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
-      if (entry.isDirectory() && /bizhawk/i.test(entry.name)) {
-        candidates.push(join(projectsDir, entry.name, "EmuHawk.exe"));
-      }
-    }
+/** Version from path/version.txt, or supported version when under managed install. */
+export function resolveInstalledBizHawkVersion(dataDir: string, exePath: string): string | null {
+  const detected = detectInstalledBizHawkVersion(exePath);
+  if (detected) return detected;
+  if (isManagedBizHawkPath(dataDir, exePath)) {
+    return SUPPORTED_BIZHAWK_VERSION;
   }
-
-  if (process.platform === "win32") {
-    try {
-      const out = execSync("where EmuHawk", {
-        encoding: "utf8",
-        windowsHide: true,
-        stdio: ["ignore", "pipe", "ignore"],
-      });
-      for (const line of out.split(/\r?\n/)) {
-        const t = line.trim();
-        if (t) candidates.push(t);
-      }
-    } catch {
-      /* not on PATH */
-    }
-  }
-
-  for (const raw of candidates) {
-    if (!raw?.trim()) continue;
-    const p = raw.trim();
-    if (!isAbsolute(p)) {
-      const hit = tryPath(join(dataDir, p), tried);
-      if (hit) return persistBizhawkPath(dataDir, cfg, hit);
-    }
-    const hit = tryPath(p, tried);
-    if (hit) return persistBizhawkPath(dataDir, cfg, hit);
-  }
-
-  throw new Error(
-    `BizHawk (EmuHawk.exe) not found under ${dataDir}. Will install to ${installDir} if allowed.`
-  );
+  return null;
 }
 
 function findEmuHawkInDir(dir: string): string | null {
@@ -102,15 +86,19 @@ function persistBizhawkPath(dataDir: string, cfg: Record<string, string>, absPat
   return absPath;
 }
 
-export async function getBizHawkDownloadUrl(): Promise<string> {
+/** Resolve download URL for a specific BizHawk release tag (defaults to supported version). */
+export async function getBizHawkDownloadUrl(
+  version: string = SUPPORTED_BIZHAWK_VERSION
+): Promise<string> {
+  const tag = version.replace(/^v/, "");
   try {
-    const res = await fetch("https://api.github.com/repos/TASEmulators/BizHawk/releases/latest", {
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "bizshuffle-bun" },
-    });
+    const res = await fetch(
+      `https://api.github.com/repos/TASEmulators/BizHawk/releases/tags/${encodeURIComponent(tag)}`,
+      { headers: { Accept: "application/vnd.github+json", "User-Agent": "bizshuffle-bun" } }
+    );
     if (!res.ok) throw new Error(`GitHub API ${res.status}`);
     const release = (await res.json()) as GhRelease;
     const suffix = process.platform === "win32" ? "win-x64" : "linux-x64";
-    const tag = release.tag_name.replace(/^v/, "");
     const patterns = [`BizHawk-${tag}-${suffix}.zip`, `BizHawk-${release.tag_name}-${suffix}.zip`];
     for (const pattern of patterns) {
       const asset = release.assets.find((a) => a.name === pattern);
@@ -121,16 +109,31 @@ export async function getBizHawkDownloadUrl(): Promise<string> {
   } catch {
     /* fallback below */
   }
-  return FALLBACK_WIN_URL;
+  return fallbackBizHawkDownloadUrl(tag);
 }
 
-async function downloadFile(url: string, dest: string): Promise<void> {
+export type BizHawkProgress = (msg: string, percent?: number) => void;
+
+async function downloadFile(
+  url: string,
+  dest: string,
+  onProgress?: BizHawkProgress
+): Promise<void> {
   const res = await fetch(url, { redirect: "follow" });
   if (!res.ok || !res.body) throw new Error(`download failed: ${url} (${res.status})`);
-  await pipeline(
-    Readable.fromWeb(res.body as unknown as import("node:stream/web").ReadableStream),
-    createWriteStream(dest)
-  );
+  const total = Number(res.headers.get("content-length") ?? 0);
+  let done = 0;
+  const reader = Readable.fromWeb(res.body as unknown as import("node:stream/web").ReadableStream);
+  const out = createWriteStream(dest);
+  reader.on("data", (chunk: Buffer | string) => {
+    done += typeof chunk === "string" ? Buffer.byteLength(chunk) : chunk.length;
+    if (total > 0 && onProgress) {
+      const pct = Math.min(99, Math.round((done / total) * 100));
+      onProgress(`Downloading BizHawk… ${pct}%`, pct);
+    }
+  });
+  await pipeline(reader, out);
+  onProgress?.("Download complete", 100);
 }
 
 async function extractZip(zipPath: string, destDir: string): Promise<void> {
@@ -151,17 +154,18 @@ async function extractZip(zipPath: string, destDir: string): Promise<void> {
 /** Download and extract BizHawk into installDir. */
 export async function installBizHawk(
   installDir: string,
-  progress?: (msg: string) => void
+  progress?: BizHawkProgress,
+  version: string = SUPPORTED_BIZHAWK_VERSION
 ): Promise<string> {
   const report = progress ?? (() => {});
   mkdirSync(installDir, { recursive: true });
-  const url = await getBizHawkDownloadUrl();
+  const url = await getBizHawkDownloadUrl(version);
   const archivePath = join(installDir, basename(new URL(url).pathname) || "BizHawk.zip");
 
-  report("Downloading BizHawk…");
-  await downloadFile(url, archivePath);
+  report("Downloading BizHawk…", 0);
+  await downloadFile(url, archivePath, report);
 
-  report("Extracting BizHawk…");
+  report("Extracting BizHawk…", undefined);
   await extractZip(archivePath, installDir);
   try {
     rmSync(archivePath, { force: true });
@@ -173,8 +177,53 @@ export async function installBizHawk(
   if (!exe) {
     throw new Error(`BizHawk installed but EmuHawk.exe not found under ${installDir}`);
   }
-  report("BizHawk installation complete");
+  report(`BizHawk ${version} installation complete`);
   return exe;
+}
+
+/** Report whether installed BizHawk meets this build's supported version. */
+export function getBizHawkStatus(dataDir: string): BizHawkStatus {
+  try {
+    const exePath = resolveEmuHawkPath(dataDir);
+    const installedVersion = resolveInstalledBizHawkVersion(dataDir, exePath);
+    return {
+      exePath,
+      installedVersion,
+      supportedVersion: SUPPORTED_BIZHAWK_VERSION,
+      missing: false,
+      needsUpdate: bizHawkNeedsUpdate(installedVersion, SUPPORTED_BIZHAWK_VERSION),
+    };
+  } catch {
+    return {
+      exePath: null,
+      installedVersion: null,
+      supportedVersion: SUPPORTED_BIZHAWK_VERSION,
+      missing: true,
+      needsUpdate: false,
+    };
+  }
+}
+
+/** Reinstall BizHawk to the supported release under dataDir/BizHawk. */
+export async function upgradeBizHawk(dataDir: string, progress?: BizHawkProgress): Promise<string> {
+  const report = progress ?? (() => {});
+  const cfg = loadConfig(dataDir);
+  ensureDefaults(cfg);
+  clearStaleBizhawkConfig(dataDir, cfg);
+  const installDir = bizHawkInstallDir(dataDir);
+  if (existsSync(installDir)) {
+    report("Removing previous BizHawk install…");
+    rmSync(installDir, { recursive: true, force: true });
+  }
+  const exe = await installBizHawk(installDir, report, SUPPORTED_BIZHAWK_VERSION);
+  return persistBizhawkPath(dataDir, cfg, exe);
+}
+
+function assertBizHawkVersionSupported(dataDir: string, exePath: string): void {
+  const installed = resolveInstalledBizHawkVersion(dataDir, exePath);
+  if (bizHawkNeedsUpdate(installed, SUPPORTED_BIZHAWK_VERSION)) {
+    throw new BizHawkVersionError(installed, SUPPORTED_BIZHAWK_VERSION);
+  }
 }
 
 /**
@@ -183,16 +232,21 @@ export async function installBizHawk(
  */
 export async function ensureBizHawkReady(
   dataDir: string,
-  opts?: { progress?: (msg: string) => void; allowInstall?: boolean }
+  opts?: { progress?: BizHawkProgress; allowInstall?: boolean; allowOutdated?: boolean }
 ): Promise<string> {
   const progress = opts?.progress ?? (() => {});
   const allowInstall = opts?.allowInstall ?? true;
+  const allowOutdated = opts?.allowOutdated ?? false;
 
   try {
     const existing = resolveEmuHawkPath(dataDir);
+    if (!allowOutdated) {
+      assertBizHawkVersionSupported(dataDir, existing);
+    }
     progress(`BizHawk found: ${existing}`);
     return existing;
-  } catch {
+  } catch (err) {
+    if (err instanceof BizHawkVersionError) throw err;
     /* install below */
   }
 
@@ -202,7 +256,7 @@ export async function ensureBizHawkReady(
     );
   }
 
-  const installDir = join(dataDir, "BizHawk");
+  const installDir = bizHawkInstallDir(dataDir);
   progress("BizHawk not found — installing…");
   const exe = await installBizHawk(installDir, progress);
   const cfg = loadConfig(dataDir);

@@ -10,6 +10,13 @@ import {
   installUpdate,
   setAppUpdateSender,
 } from "./app-updates.js";
+import {
+  initDependencies,
+  installDependency,
+  playBlockedReason,
+  refreshDependencies,
+  setDependenciesSender,
+} from "./dependencies.js";
 import { BizShuffleServer, syncCatalogFromRoms } from "@bizshuffle-bun/server-host";
 import {
   ClientRuntime,
@@ -54,6 +61,9 @@ function shellRpcSend():
   | {
       status: (payload: { msg: string }) => void;
       updateState: (payload: ShellRPCSchema["webview"]["messages"]["updateState"]) => void;
+      dependenciesState: (
+        payload: ShellRPCSchema["webview"]["messages"]["dependenciesState"]
+      ) => void;
     }
   | undefined {
   try {
@@ -63,6 +73,9 @@ function shellRpcSend():
             send: {
               status: (payload: { msg: string }) => void;
               updateState: (payload: ShellRPCSchema["webview"]["messages"]["updateState"]) => void;
+              dependenciesState: (
+                payload: ShellRPCSchema["webview"]["messages"]["dependenciesState"]
+              ) => void;
             };
           }
         | undefined
@@ -78,6 +91,24 @@ function sendStatus(msg: string): void {
 
 function sendUpdateState(state: ShellRPCSchema["webview"]["messages"]["updateState"]): void {
   shellRpcSend()?.updateState(state);
+}
+
+function sendDependenciesState(
+  state: ShellRPCSchema["webview"]["messages"]["dependenciesState"]
+): void {
+  shellRpcSend()?.dependenciesState(state);
+}
+
+function assertPlayReady(dir: string): void {
+  const blocked = playBlockedReason(dir);
+  if (blocked) {
+    refreshDependencies(dir);
+    throw new Error(blocked);
+  }
+}
+
+function depProgress(msg: string): void {
+  desktopLog("bizshuffle-bun", msg);
 }
 
 async function ensureServerStarted(): Promise<string> {
@@ -195,13 +226,10 @@ function defineShellRpc() {
           const { serverUrl, playerName } =
             params as ShellRPCSchema["bun"]["requests"]["join"]["params"];
           const dir = dataDir();
+          assertPlayReady(dir);
           sendStatus("Checking BizHawk…");
-          await ensureBizHawkReady(dir, {
-            progress: (msg) => {
-              sendStatus(msg);
-              desktopLog("bizshuffle-bun", msg);
-            },
-          });
+          await ensureBizHawkReady(dir, { progress: depProgress });
+          refreshDependencies(dir);
           sendStatus(`Joining ${serverUrl} as ${playerName}…`);
           await startClient(serverUrl, playerName);
           sendStatus(`Connected as ${playerName}`);
@@ -220,13 +248,10 @@ function defineShellRpc() {
             clientRuntime = null;
             emulator.stop();
             await new Promise((r) => setTimeout(r, 300));
-            sendStatus("Checking dependencies (BizHawk)…");
-            const emuPath = await ensureBizHawkReady(dir, {
-              progress: (msg) => {
-                sendStatus(msg);
-                desktopLog("bizshuffle-bun", msg);
-              },
-            });
+            assertPlayReady(dir);
+            sendStatus("Checking BizHawk…");
+            const emuPath = await ensureBizHawkReady(dir, { progress: depProgress });
+            refreshDependencies(dir);
             sendStatus("Host & Play: reserving Lua IPC port…");
             const luaPort = await reserveLuaPort();
             const portFile = join(dir, "lua_server_port.txt");
@@ -269,11 +294,19 @@ function defineShellRpc() {
         installUpdate: async () => {
           await installUpdate();
         },
+        getDependencies: async () => refreshDependencies(dataDir()),
+        installDependency: async (params: unknown) => {
+          const { id } = params as ShellRPCSchema["bun"]["requests"]["installDependency"]["params"];
+          return installDependency(dataDir(), id, depProgress);
+        },
       },
       messages: {
         diag: (payload: unknown) => {
           const { line } = payload as ShellRPCSchema["bun"]["messages"]["diag"];
           desktopLog("bizshuffle-shell", line);
+        },
+        shellReady: () => {
+          refreshDependencies(dataDir());
         },
       } as NonNullable<
         Parameters<typeof defineElectrobunRPC<ShellRPCSchema>>[1]["handlers"]
@@ -288,7 +321,7 @@ desktopLog("bizshuffle-bun", "creating shell BrowserWindow (views://shell/index.
 shellWindow = new BrowserWindow({
   title: "BizShuffle",
   url: "views://shell/index.html",
-  frame: { x: 200, y: 120, width: 520, height: 520 },
+  frame: { x: 200, y: 120, width: 520, height: 580 },
   rpc: shellRpc,
   titleBarStyle: "default",
   transparent: false,
@@ -309,6 +342,8 @@ desktopLog("bizshuffle-bun", "shell window created");
 
 setAppUpdateSender(sendUpdateState);
 initAppUpdates();
+setDependenciesSender(sendDependenciesState);
+initDependencies(dataDir());
 
 async function shutdown(): Promise<void> {
   clientRuntime?.stop();

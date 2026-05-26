@@ -1,5 +1,11 @@
 import { Electroview } from "electrobun/view";
-import type { AppUpdateState, ShellRPCSchema } from "../../shared/rpc.js";
+import type { AppUpdateState, DependenciesState, ShellRPCSchema } from "../../shared/rpc.js";
+
+const defaultDepsState: DependenciesState = {
+  checking: true,
+  items: [],
+  playBlocked: true,
+};
 
 const defaultUpdateState: AppUpdateState = {
   version: "…",
@@ -11,6 +17,7 @@ const defaultUpdateState: AppUpdateState = {
 };
 
 let updateState: AppUpdateState = { ...defaultUpdateState };
+let depsState: DependenciesState = { ...defaultDepsState };
 
 const rpc = Electroview.defineRPC<ShellRPCSchema>({
   handlers: {
@@ -23,6 +30,10 @@ const rpc = Electroview.defineRPC<ShellRPCSchema>({
       updateState: (state) => {
         updateState = state;
         patchFooter();
+      },
+      dependenciesState: (state) => {
+        depsState = state;
+        syncDepsUi();
       },
     },
   },
@@ -70,6 +81,43 @@ function escapeHtml(text: string): string {
     .replaceAll('"', "&quot;");
 }
 
+function depsPanelHtml(): string {
+  if (depsState.checking) {
+    return `<section class="deps-panel" id="deps-panel"><p class="deps-checking">Checking dependencies…</p></section>`;
+  }
+
+  if (depsState.items.length === 0) {
+    return "";
+  }
+
+  const rows = depsState.items
+    .map((item) => {
+      const statusClass =
+        item.status === "ok" ? "deps-ok" : item.installing ? "deps-installing" : "deps-action";
+      const showAction = item.actionLabel && item.status !== "ok" && !item.installing;
+      const progress =
+        item.installing && item.progress >= 0
+          ? `<div class="deps-progress" role="progressbar" aria-valuenow="${item.progress}" aria-valuemin="0" aria-valuemax="100"><div class="deps-progress-bar" style="width:${item.progress}%"></div></div><p class="deps-progress-msg">${escapeHtml(item.statusMessage ?? "")}</p>`
+          : "";
+      const err = item.error ? `<p class="deps-error">${escapeHtml(item.error)}</p>` : "";
+      const btn = showAction
+        ? `<button type="button" class="deps-action-btn" data-dep-id="${item.id}">${escapeHtml(item.actionLabel!)}</button>`
+        : "";
+      return `<div class="deps-row ${statusClass}" data-dep-id="${item.id}">
+        <div class="deps-row-head"><strong>${escapeHtml(item.label)}</strong><span class="deps-detail">${escapeHtml(item.detail)}</span></div>
+        ${progress}${err}${btn}
+      </div>`;
+    })
+    .join("");
+
+  const blocked =
+    depsState.playBlocked && !depsState.items.some((i) => i.installing)
+      ? `<p class="deps-hint">Install or update the items above before Join or Host &amp; Play.</p>`
+      : "";
+
+  return `<section class="deps-panel" id="deps-panel">${rows}${blocked}</section>`;
+}
+
 function footerHtml(): string {
   const { version, channel, updateAvailable, updateReady, downloading, latestVersion, status } =
     updateState;
@@ -92,13 +140,27 @@ function footerHtml(): string {
     updateBtn = `<button type="button" class="link update-btn" id="update-btn" ${disabled}>${label}</button>`;
   }
 
-  return `<footer class="app-footer"><span class="app-version">${versionLabel}</span>${updateBtn}</footer>`;
+  return `<footer class="app-footer"><div class="footer-row"><span class="app-version">${versionLabel}</span>${updateBtn}</div></footer>`;
 }
 
-function wireUpdateButton(): void {
-  const btn = document.getElementById("update-btn");
-  if (!btn) return;
-  btn.onclick = () => {
+function wireDepsPanel(): void {
+  document.querySelectorAll(".deps-action-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = (btn as HTMLButtonElement).dataset.depId as "bizhawk" | "vcredist";
+      void (async () => {
+        try {
+          depsState = await rpc.request.installDependency({ id });
+          syncDepsUi();
+        } catch (e) {
+          setStatus(String(e));
+        }
+      })();
+    });
+  });
+}
+
+function wireFooterButtons(): void {
+  document.getElementById("update-btn")?.addEventListener("click", () => {
     if (updateState.downloading && !updateState.updateReady) return;
     void (async () => {
       try {
@@ -107,14 +169,73 @@ function wireUpdateButton(): void {
         setStatus(String(e));
       }
     })();
-  };
+  });
+}
+
+function syncDepsUi(): void {
+  const html = depsPanelHtml();
+  const panel = document.getElementById("deps-panel");
+  if (!html) {
+    panel?.remove();
+    render();
+    return;
+  }
+  if (panel) {
+    panel.outerHTML = html;
+    wireDepsPanel();
+    updatePlayButtons();
+    return;
+  }
+  render();
+}
+
+function patchDepsPanel(): void {
+  syncDepsUi();
 }
 
 function patchFooter(): void {
-  const existing = document.querySelector(".app-footer");
-  if (!existing) return;
-  existing.outerHTML = footerHtml();
-  wireUpdateButton();
+  const footer = document.querySelector(".app-footer");
+  if (!footer) return;
+  footer.outerHTML = footerHtml();
+  wireFooterButtons();
+}
+
+function updatePlayButtons(): void {
+  const blocked = depsState.playBlocked || depsState.checking;
+  for (const id of ["go-join", "host-play"]) {
+    const el = document.getElementById(id) as HTMLButtonElement | null;
+    if (el) el.disabled = blocked || busy;
+  }
+  const joinSubmit = document.querySelector(
+    ".join-form button[type=submit]"
+  ) as HTMLButtonElement | null;
+  if (joinSubmit) joinSubmit.disabled = blocked || busy;
+}
+
+function playBlockedClientMessage(): string | null {
+  if (depsState.checking) return "Still checking dependencies…";
+  if (!depsState.playBlocked) return null;
+  const bizhawk = depsState.items.find((i) => i.id === "bizhawk");
+  const vc = depsState.items.find((i) => i.id === "vcredist");
+  if (bizhawk?.status === "outdated") {
+    return `BizHawk needs an update — use "${bizhawk.actionLabel ?? "Update"}" above.`;
+  }
+  if (bizhawk?.status === "missing") {
+    return `BizHawk is required — use "${bizhawk.actionLabel ?? "Install"}" above.`;
+  }
+  if (vc?.status === "missing") {
+    return `Visual C++ runtime is required — use "${vc.actionLabel ?? "Install"}" above.`;
+  }
+  return "Resolve dependencies above before joining or playing.";
+}
+
+async function loadDependencies(): Promise<void> {
+  try {
+    depsState = await rpc.request.getDependencies({});
+    patchDepsPanel();
+  } catch (e) {
+    slog(`getDependencies failed: ${e}`);
+  }
 }
 
 async function loadAppInfo(): Promise<void> {
@@ -145,7 +266,9 @@ function render(): void {
     return;
   }
   slog(`render:${view}`);
+  const deps = depsPanelHtml();
   const footer = footerHtml();
+
   if (view === "join") {
     const disc =
       discovered.length > 0
@@ -162,11 +285,12 @@ function render(): void {
           <button type="button" class="link" id="back">← Back</button>
           <h1>Join session</h1>
         </header>
+        ${deps}
         <form class="join-form" id="join-form">
           <label>Server URL<input id="server-url" value="${escapeHtml(serverUrl)}" ${busy ? "disabled" : ""} /></label>
           ${disc}
           <label>Your name<input id="player-name" value="${escapeHtml(playerName)}" placeholder="Player name" ${busy ? "disabled" : ""} /></label>
-          <button type="submit" ${busy ? "disabled" : ""}>Join</button>
+          <button type="submit" ${busy || depsState.playBlocked ? "disabled" : ""}>Join</button>
         </form>
         <p class="status" id="status">${escapeHtml(statusLine)}</p>
         ${footer}
@@ -185,7 +309,9 @@ function render(): void {
         render();
       });
     });
-    wireUpdateButton();
+    wireDepsPanel();
+    wireFooterButtons();
+    updatePlayButtons();
     return;
   }
 
@@ -195,10 +321,11 @@ function render(): void {
         <h1>BizShuffle</h1>
         <p class="tagline">Host a session, join a friend, or do both.</p>
       </header>
+      ${deps}
       <div class="actions">
         <button type="button" id="host" ${busy ? "disabled" : ""}>Host</button>
-        <button type="button" id="go-join" ${busy ? "disabled" : ""}>Join</button>
-        <button type="button" id="host-play" ${busy ? "disabled" : ""}>Host &amp; Play</button>
+        <button type="button" id="go-join" ${busy || depsState.playBlocked ? "disabled" : ""}>Join</button>
+        <button type="button" id="host-play" ${busy || depsState.playBlocked ? "disabled" : ""}>Host &amp; Play</button>
       </div>
       <label class="inline-name">Player name (Host &amp; Play)
         <input id="inline-name" value="${escapeHtml(playerName)}" placeholder="Host" ${busy ? "disabled" : ""} />
@@ -222,9 +349,10 @@ function render(): void {
   document.getElementById("inline-name")!.oninput = (e) => {
     playerName = (e.target as HTMLInputElement).value;
   };
-  wireUpdateButton();
-  const hostBtn = document.getElementById("host");
-  slog(`render:welcome done — host button=${hostBtn ? "yes" : "no"}`);
+  wireDepsPanel();
+  wireFooterButtons();
+  updatePlayButtons();
+  slog(`render:welcome done — host button=${document.getElementById("host") ? "yes" : "no"}`);
 }
 
 async function onHost(): Promise<void> {
@@ -243,6 +371,11 @@ async function onHost(): Promise<void> {
 }
 
 async function onHostAndPlay(): Promise<void> {
+  const blocked = playBlockedClientMessage();
+  if (blocked) {
+    setStatus(blocked);
+    return;
+  }
   const name = playerName.trim() || "Host";
   busy = true;
   setStatus("Starting Host & Play…");
@@ -259,6 +392,11 @@ async function onHostAndPlay(): Promise<void> {
 }
 
 async function onJoin(): Promise<void> {
+  const blocked = playBlockedClientMessage();
+  if (blocked) {
+    setStatus(blocked);
+    return;
+  }
   serverUrl = (document.getElementById("server-url") as HTMLInputElement).value;
   playerName = (document.getElementById("player-name") as HTMLInputElement).value.trim();
   if (!playerName) {
@@ -281,6 +419,15 @@ async function onJoin(): Promise<void> {
 
 render();
 slog("initial render complete");
-void loadAppInfo();
+
+void (async () => {
+  try {
+    rpc.send.shellReady({});
+  } catch {
+    /* bun may not be ready yet */
+  }
+  await loadDependencies();
+  await loadAppInfo();
+})();
 void refreshDiscovery();
 setInterval(() => void refreshDiscovery(), 5000);

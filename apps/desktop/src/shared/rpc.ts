@@ -1,5 +1,26 @@
 import type { DiscoveryMessage } from "@bizshuffle-bun/protocol";
+import type { DependencyId, DependencyStatus } from "@bizshuffle-bun/client-host";
 import type { ElectrobunRPCSchema } from "electrobun/bun";
+
+/** One row in the shell dependencies panel (BizHawk, VC++ runtime, …). */
+export type DependencyUiItem = {
+  id: DependencyId;
+  label: string;
+  status: DependencyStatus;
+  detail: string;
+  actionLabel?: string;
+  installing: boolean;
+  /** 0–100 while installing; -1 when idle. */
+  progress: number;
+  statusMessage?: string;
+  error?: string;
+};
+
+export type DependenciesState = {
+  checking: boolean;
+  items: DependencyUiItem[];
+  playBlocked: boolean;
+};
 
 /** Desktop app version + Electrobun updater state pushed to the shell footer. */
 export type AppUpdateState = {
@@ -27,10 +48,17 @@ export type ShellRPCSchema = {
       getAppInfo: { params: Record<string, never>; response: AppUpdateState };
       checkForUpdates: { params: Record<string, never>; response: AppUpdateState };
       installUpdate: { params: Record<string, never>; response: void };
+      getDependencies: { params: Record<string, never>; response: DependenciesState };
+      installDependency: {
+        params: { id: DependencyId };
+        response: DependenciesState;
+      };
     };
     messages: {
       /** Webview → bun diagnostic lines (smoke tests, dev logging). */
       diag: { line: string };
+      /** Webview → bun: shell finished loading; run dependency checks. */
+      shellReady: Record<string, never>;
     };
   };
   webview: {
@@ -40,6 +68,8 @@ export type ShellRPCSchema = {
       status: { msg: string };
       /** Bun → webview footer version / update UI. */
       updateState: AppUpdateState;
+      /** Bun → webview dependencies panel (BizHawk, VC++ …). */
+      dependenciesState: DependenciesState;
     };
   };
 } & ElectrobunRPCSchema;
