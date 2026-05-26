@@ -23,11 +23,7 @@ import {
 const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
 const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04] as const;
 
-function fail(
-  code: SavestateErrorCode,
-  message: string,
-  detail?: unknown
-): VerifySavestateFail {
+function fail(code: SavestateErrorCode, message: string, detail?: unknown): VerifySavestateFail {
   return { ok: false, code, message, detail };
 }
 
@@ -51,8 +47,7 @@ export function isProbablyBizHawkSavestate(input: Uint8Array | Buffer): boolean 
   if (!hasZipMagic(fileBytes)) return false;
   try {
     const entries = openZipArchive(fileBytes);
-    const hasVersion =
-      entries.has(LUMP_ZIP_VERSION) || entries.has(`${LUMP_ZIP_VERSION}.zst`);
+    const hasVersion = entries.has(LUMP_ZIP_VERSION) || entries.has(`${LUMP_ZIP_VERSION}.zst`);
     const hasCore =
       entries.has(LUMP_CORE_BIN) ||
       entries.has(`${LUMP_CORE_BIN}.zst`) ||

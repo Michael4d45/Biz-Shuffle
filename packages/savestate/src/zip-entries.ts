@@ -87,7 +87,7 @@ export function readLumpBytes(
   const lump = entries.get(logicalName) ?? entries.get(`${logicalName}.zst`);
   if (!lump) return null;
 
-  const ext = lump.relPath.includes(".") ? lump.relPath.split(".").pop() ?? "" : "";
+  const ext = lump.relPath.includes(".") ? (lump.relPath.split(".").pop() ?? "") : "";
   if (lump.compressed || isLegacyZstd(lump, formatVersion, ext)) {
     try {
       return decompress(lump.data);
@@ -148,7 +148,10 @@ export function checkTimeline(
   return { ok: true };
 }
 
-export function sanityCheckCoreBinary(raw: Uint8Array, systemId: string | null): { ok: true } | { ok: false; detail: string } {
+export function sanityCheckCoreBinary(
+  raw: Uint8Array,
+  systemId: string | null
+): { ok: true } | { ok: false; detail: string } {
   if (raw.length < 4) {
     return { ok: false, detail: "core blob too small" };
   }

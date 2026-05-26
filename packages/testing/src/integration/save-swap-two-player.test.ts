@@ -46,10 +46,7 @@ describe("save mode two-player swap", () => {
 
     await postJson(base, "/api/mode", { mode: "save" });
     await postJson(base, "/api/games", {
-      main_games: [
-        { file: "Banjo-Kazooie (USA).zip" },
-        { file: "Chrono Trigger (USA).zip" },
-      ],
+      main_games: [{ file: "Banjo-Kazooie (USA).zip" }, { file: "Chrono Trigger (USA).zip" }],
       game_instances: [
         { id: BANJO_ID, game: "Banjo-Kazooie (USA).zip", file_state: "none" },
         { id: CHRONO_ID, game: "Chrono Trigger (USA).zip", file_state: "none" },

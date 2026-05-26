@@ -6,9 +6,5 @@ export {
   type VerifySavestateOptions,
   type VerifySavestateResult,
 } from "./types.js";
-export {
-  buildMinimalBizHawkSavestate,
-  buildNonBizHawkZip,
-  INVALID_SAVE_ZIP,
-} from "./fixture.js";
+export { buildMinimalBizHawkSavestate, buildNonBizHawkZip, INVALID_SAVE_ZIP } from "./fixture.js";
 export { isProbablyBizHawkSavestate, verifyBizHawkSavestate } from "./verify.js";

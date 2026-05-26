@@ -15,7 +15,10 @@ export function isSaveUploadRejected(err: unknown): err is SaveUploadRejectedErr
   return err instanceof SaveUploadRejectedError;
 }
 
-export function parseSaveUploadRejected(status: number, body: string): SaveUploadRejectedError | null {
+export function parseSaveUploadRejected(
+  status: number,
+  body: string
+): SaveUploadRejectedError | null {
   if (status !== 422) return null;
   try {
     const parsed = JSON.parse(body) as { code?: string; message?: string };

@@ -133,6 +133,11 @@ export class Controller {
     const game = payload.game ?? "";
     const instanceId = payload.instance_id ?? "";
 
+    if (this.deps.bipc && !this.deps.bipc.isReady()) {
+      this.pendingSwap = { cmd, ack, nack };
+      return;
+    }
+
     if (game) {
       try {
         await ensureFile(this.deps.api.baseUrl, this.deps.dataDir, game);
@@ -163,11 +168,10 @@ export class Controller {
       } catch (err) {
         await nack(cmd.id, String(err));
       }
-    } else if (this.deps.bipc) {
-      this.pendingSwap = { cmd, ack, nack };
-    } else {
-      await ack(cmd.id);
+      return;
     }
+
+    await ack(cmd.id);
   }
 
   private async handleMessage(

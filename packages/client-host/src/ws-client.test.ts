@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "bun:test";
 import type { Command } from "@bizshuffle-bun/protocol";
 import { Controller } from "./controller.js";
@@ -70,6 +72,11 @@ describe("Controller", () => {
   it("defers swap until ipc is ready", async () => {
     const sent: Command[] = [];
     let ready = false;
+    const dataDir = join("/tmp", `bizshuffle-ctrl-${Date.now()}`);
+    const savesDir = join(dataDir, "saves");
+    mkdirSync(savesDir, { recursive: true });
+    writeFileSync(join(savesDir, "inst-1.state"), Buffer.alloc(1));
+
     const bipc = {
       isReady: () => ready,
       sendPause: vi.fn(),
@@ -79,7 +86,7 @@ describe("Controller", () => {
       sendMessage: vi.fn(),
     } as unknown as BizhawkIpc;
     const controller = new Controller({
-      dataDir: "/tmp",
+      dataDir,
       api: mockApi("http://127.0.0.1:1"),
       bipc,
       pluginsDir: "/tmp/plugins",
