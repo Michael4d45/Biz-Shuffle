@@ -12,9 +12,15 @@ const pkgPath = join(desktopDir, "package.json");
 const configPath = join(desktopDir, "electrobun.config.ts");
 
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[\w.-]+)?$/;
+/** Release tags pushed to CI/CD (e.g. v0.0.10). Branch names like `main` are not tags. */
+const RELEASE_TAG_RE = /^v\d+\.\d+\.\d+(-[\w.-]+)?$/;
 
 export function normalizeVersion(input: string): string {
   return input.trim().replace(/^v/, "");
+}
+
+export function isReleaseTagRef(ref: string): boolean {
+  return RELEASE_TAG_RE.test(ref.trim());
 }
 
 export function readDesktopVersions(): { packageJson: string; electrobunConfig: string } {
@@ -51,9 +57,12 @@ function resolveVersionFromCliOrEnv(): string {
   const fromArg = process.argv[2]?.trim();
   if (fromArg) return normalizeVersion(fromArg);
   const fromEnv = process.env.GITHUB_REF_NAME?.trim();
-  if (fromEnv) return normalizeVersion(fromEnv);
+  const refType = process.env.GITHUB_REF_TYPE?.trim();
+  if (fromEnv && (refType === "tag" || isReleaseTagRef(fromEnv))) {
+    return normalizeVersion(fromEnv);
+  }
   throw new Error(
-    "Usage: bun run scripts/sync-desktop-version.ts <version|vX.Y.Z>\n  or set GITHUB_REF_NAME=vX.Y.Z"
+    "Usage: bun run scripts/sync-desktop-version.ts <version|vX.Y.Z>\n  or set GITHUB_REF_NAME=vX.Y.Z on a tag ref"
   );
 }
 

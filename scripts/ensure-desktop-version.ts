@@ -3,12 +3,19 @@
  * CI: sync version from GITHUB_REF_NAME before release build.
  * Local: verify package.json and electrobun.config versions match (no manual sync in CI).
  */
-import { readDesktopVersions, syncDesktopVersion, normalizeVersion } from "./sync-desktop-version.js";
+import {
+  isReleaseTagRef,
+  readDesktopVersions,
+  syncDesktopVersion,
+  normalizeVersion,
+} from "./sync-desktop-version.js";
 
-const tag = process.env.GITHUB_REF_NAME?.trim();
+const refName = process.env.GITHUB_REF_NAME?.trim();
+const refType = process.env.GITHUB_REF_TYPE?.trim();
 
-if (tag) {
-  const version = syncDesktopVersion(tag);
+// Only sync on release tag builds — branch CI sets GITHUB_REF_NAME=main.
+if (refName && (refType === "tag" || isReleaseTagRef(refName))) {
+  const version = syncDesktopVersion(refName);
   console.log(`Desktop version synced from tag: ${version}`);
   process.exit(0);
 }
