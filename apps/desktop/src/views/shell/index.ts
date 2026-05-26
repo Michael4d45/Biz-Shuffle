@@ -84,6 +84,34 @@ function setStatus(msg: string): void {
   if (el) el.textContent = msg;
 }
 
+/** Read live input values before replacing the DOM (module vars lag behind typing). */
+function captureFormState(): void {
+  const serverUrlEl = document.getElementById("server-url") as HTMLInputElement | null;
+  if (serverUrlEl) serverUrl = serverUrlEl.value;
+  const playerNameEl = document.getElementById("player-name") as HTMLInputElement | null;
+  if (playerNameEl) playerName = playerNameEl.value;
+  const bindHostEl = document.getElementById("bind-host") as HTMLInputElement | null;
+  if (bindHostEl) bindHost = bindHostEl.value;
+}
+
+type SavedFocus = { id: string; start: number | null; end: number | null };
+
+function saveFocus(): SavedFocus | null {
+  const el = document.activeElement;
+  if (!(el instanceof HTMLInputElement) || !el.id) return null;
+  return { id: el.id, start: el.selectionStart, end: el.selectionEnd };
+}
+
+function restoreFocus(saved: SavedFocus | null): void {
+  if (!saved) return;
+  const el = document.getElementById(saved.id);
+  if (!(el instanceof HTMLInputElement)) return;
+  el.focus();
+  if (saved.start !== null && saved.end !== null) {
+    el.setSelectionRange(saved.start, saved.end);
+  }
+}
+
 function escapeHtml(text: string): string {
   return text
     .replaceAll("&", "&amp;")
@@ -277,7 +305,9 @@ function wirePickServerButtons(): void {
   document.querySelectorAll(".pick-server").forEach((btn) => {
     btn.addEventListener("click", () => {
       serverUrl = (btn as HTMLButtonElement).dataset.url ?? serverUrl;
-      render();
+      const input = document.getElementById("server-url") as HTMLInputElement | null;
+      if (input) input.value = serverUrl;
+      else render();
     });
   });
   document.querySelectorAll(".pick-server-welcome").forEach((btn) => {
@@ -289,15 +319,38 @@ function wirePickServerButtons(): void {
   });
 }
 
+function patchDiscoveredServers(): void {
+  const container = document.getElementById("discovered-servers");
+  if (!container) return;
+  container.innerHTML = discoveredServersHtml(true, view === "welcome");
+  wirePickServerButtons();
+}
+
 async function refreshDiscovery(): Promise<void> {
   try {
     const { servers, hostedUrl: hosted } = await rpc.request.discover({});
     discovered = servers;
+    captureFormState();
     if (!serverUrl && hosted) serverUrl = hosted;
+    if (document.getElementById("discovered-servers")) {
+      patchDiscoveredServers();
+      const serverUrlEl = document.getElementById("server-url") as HTMLInputElement | null;
+      if (serverUrlEl && serverUrl) serverUrlEl.value = serverUrl;
+      return;
+    }
     render();
   } catch (e) {
     setStatus(String(e));
   }
+}
+
+function wireJoinFormInputs(): void {
+  document.getElementById("server-url")?.addEventListener("input", (e) => {
+    serverUrl = (e.target as HTMLInputElement).value;
+  });
+  document.getElementById("player-name")?.addEventListener("input", (e) => {
+    playerName = (e.target as HTMLInputElement).value;
+  });
 }
 
 function render(): void {
@@ -305,12 +358,13 @@ function render(): void {
     slog("render skipped — no #root");
     return;
   }
+  captureFormState();
+  const savedFocus = saveFocus();
   slog(`render:${view}`);
   const deps = depsPanelHtml();
   const footer = footerHtml();
 
   if (view === "join") {
-    const disc = discoveredServersHtml(true);
     root.innerHTML = `
       <div class="shell">
         <header>
@@ -320,7 +374,7 @@ function render(): void {
         ${deps}
         <form class="join-form" id="join-form">
           <label>Server URL<input id="server-url" value="${escapeHtml(serverUrl)}" ${busy ? "disabled" : ""} /></label>
-          ${disc}
+          <div id="discovered-servers">${discoveredServersHtml(true)}</div>
           <label>Your name<input id="player-name" value="${escapeHtml(playerName)}" placeholder="Player name" ${busy ? "disabled" : ""} /></label>
           <button type="submit" ${busy || depsState.playBlocked ? "disabled" : ""}>Join</button>
         </form>
@@ -335,14 +389,15 @@ function render(): void {
       e.preventDefault();
       void onJoin();
     };
+    wireJoinFormInputs();
     wirePickServerButtons();
     wireDepsPanel();
     wireFooterButtons();
     updatePlayButtons();
+    restoreFocus(savedFocus);
     return;
   }
 
-  const disc = discoveredServersHtml(true, true);
   root.innerHTML = `
     <div class="shell">
       <header>
@@ -361,7 +416,7 @@ function render(): void {
         </label>
         <p class="bind-host-hint"><code>127.0.0.1</code> — local only. <code>0.0.0.0</code> — accept LAN connections.</p>
       </details>
-      ${disc}
+      <div id="discovered-servers">${discoveredServersHtml(true, true)}</div>
       <div class="footer-actions">
         <button type="button" class="link" id="open-data">Open data folder</button>
         <button type="button" class="link" id="refresh-disc">Refresh discovery</button>
@@ -389,6 +444,7 @@ function render(): void {
   wireDepsPanel();
   wireFooterButtons();
   updatePlayButtons();
+  restoreFocus(savedFocus);
   slog(`render:welcome done — host button=${document.getElementById("host") ? "yes" : "no"}`);
 }
 
