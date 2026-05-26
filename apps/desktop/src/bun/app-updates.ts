@@ -49,9 +49,7 @@ function stateFromUpdaterCheck(
   const updateAvailable = Boolean(result.updateAvailable);
   // Electrobun may return the local version when no update; don't label that as "latest".
   const latestVersion =
-    updateAvailable && remoteVersion && remoteVersion !== localVersion
-      ? remoteVersion
-      : undefined;
+    updateAvailable && remoteVersion && remoteVersion !== localVersion ? remoteVersion : undefined;
   return {
     latestVersion,
     updateAvailable,

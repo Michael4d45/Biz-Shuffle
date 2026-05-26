@@ -32,6 +32,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Desktop version files in sync
+        run: bun run scripts/ensure-desktop-version.ts
+
       - name: Format check
         run: bun run format:check
 
