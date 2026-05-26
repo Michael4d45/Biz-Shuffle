@@ -13,6 +13,7 @@ import {
 } from "./plugins.js";
 import { listRoms, syncCatalogFromRoms } from "./rom-catalog.js";
 import { openPathInFileManager } from "./open-path.js";
+import { resolveShareUrls } from "./share-urls.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 32 * 1024 * 1024 } });
 
@@ -33,6 +34,18 @@ export function createHttpApp(server: BizShuffleServer): Express {
 
   app.get("/state.json", (_req, res) => {
     res.json({ state: server.snapshotState() });
+  });
+
+  app.get("/api/share_urls", async (_req, res) => {
+    const st = server.snapshotState();
+    const host = st.host ?? "127.0.0.1";
+    const port = st.port ?? 8080;
+    try {
+      const urls = await resolveShareUrls(host, port);
+      res.json(urls);
+    } catch (err) {
+      res.status(500).send(err instanceof Error ? err.message : String(err));
+    }
   });
 
   app.get("/", (_req, res) => {

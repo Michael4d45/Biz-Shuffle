@@ -4,6 +4,7 @@ import { intervalError, intervalValid } from "../intervalUtils.js";
 import { SESSION_BUTTONS } from "../sessionButtons.js";
 import { intervalDisplay, nextSwapDisplay } from "../swapDisplay.js";
 import type { ServerState } from "../types.js";
+import { ShareAddresses } from "./ShareAddresses.js";
 import { ActionRow, Badge, Button, Card, Divider, FieldLabel, Input, Select } from "./ui.js";
 
 type Props = {
@@ -43,6 +44,10 @@ export function SessionCard({ state, trigger, nowMs }: Props) {
         {state?.swap_enabled === false ? <Badge variant="warn">Auto swaps off</Badge> : null}
         {state?.countdown_enabled ? <Badge variant="info">Countdown on</Badge> : null}
       </div>
+
+      <Divider />
+
+      <ShareAddresses />
 
       <Divider />
 

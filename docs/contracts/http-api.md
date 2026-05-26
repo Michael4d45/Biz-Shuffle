@@ -13,6 +13,7 @@ Routes implemented by `@bizshuffle-bun/server-host` — see `packages/server-hos
 ## State
 
 - GET `/state.json` → `{ "state": ServerState }`
+- GET `/api/share_urls` → `{ "lan": string[], "wan": string | null, "local_only": boolean }`
 
 ## Files
 

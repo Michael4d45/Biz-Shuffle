@@ -78,6 +78,19 @@ describe("admin API parity", () => {
     expect(removeCompleted.status).toBe(200);
   });
 
+  it("returns share URLs for admin panel", async () => {
+    const res = await fetch(`${server.url}/api/share_urls`);
+    expect(res.ok).toBe(true);
+    const body = (await res.json()) as {
+      lan: string[];
+      wan: string | null;
+      local_only: boolean;
+    };
+    expect(body.local_only).toBe(true);
+    expect(body.lan).toEqual([]);
+    expect(body.wan).toBeNull();
+  });
+
   it("covers config and files endpoints", async () => {
     const base = server.url;
     const checkConfig = await fetch(`${base}/api/check_player_config`, {

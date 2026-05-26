@@ -1,5 +1,15 @@
 import type { GameEntry, GameSwapInstance, Plugin, ServerState } from "./types.js";
 
+export type ShareUrls = {
+  lan: string[];
+  wan: string | null;
+  local_only: boolean;
+};
+
+export async function fetchShareUrls(): Promise<ShareUrls> {
+  return fetchJson<ShareUrls>("/api/share_urls");
+}
+
 export async function fetchState(): Promise<ServerState> {
   const res = await fetch("/state.json");
   if (!res.ok) throw new Error(`state.json ${res.status}`);
