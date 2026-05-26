@@ -29,15 +29,18 @@ export default {
       "../../assets/server.lua": "assets/server.lua",
     },
     mac: {
-      bundleCEF: false,
+      bundleCEF: true,
+      defaultRenderer: "cef",
       icons: "icon.iconset",
     },
     win: {
-      bundleCEF: false,
+      bundleCEF: true,
+      defaultRenderer: "cef",
       icon: "icon.iconset/icon_256x256.png",
     },
     linux: {
-      bundleCEF: false,
+      bundleCEF: true,
+      defaultRenderer: "cef",
       icon: "icon.iconset/icon_256x256.png",
     },
   },
