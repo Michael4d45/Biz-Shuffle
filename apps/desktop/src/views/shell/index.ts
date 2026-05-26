@@ -308,9 +308,19 @@ function patchFooter(): void {
   try {
     footer.outerHTML = footerHtml();
     wireFooterButtons();
+    scheduleLayoutRefresh();
   } catch (e) {
     slog(`patchFooter failed: ${e}`);
   }
+}
+
+/** CEF often skips the first flex layout pass until the webview is resized. */
+function scheduleLayoutRefresh(): void {
+  const nudge = (): void => {
+    void document.documentElement.offsetHeight;
+    globalThis.dispatchEvent(new Event("resize"));
+  };
+  requestAnimationFrame(() => requestAnimationFrame(nudge));
 }
 
 function updatePlayButtons(): void {
@@ -488,6 +498,7 @@ function render(): void {
     wireFooterButtons();
     updatePlayButtons();
     restoreFocus(savedFocus);
+    scheduleLayoutRefresh();
     return;
   }
 
@@ -533,6 +544,7 @@ function render(): void {
   wireFooterButtons();
   updatePlayButtons();
   restoreFocus(savedFocus);
+  scheduleLayoutRefresh();
   slog(`render:welcome done — host button=${document.getElementById("host") ? "yes" : "no"}`);
 }
 
@@ -590,9 +602,10 @@ void (async () => {
   } catch {
     /* bun may not be ready yet */
   }
+  await loadAppInfo();
   await loadShellSettingsFromDisk();
   await loadDependencies();
-  await loadAppInfo();
+  render();
   await refreshDiscovery();
 })();
 setInterval(() => void refreshDiscovery(), 5000);
