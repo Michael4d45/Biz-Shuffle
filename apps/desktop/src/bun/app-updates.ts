@@ -32,12 +32,18 @@ function stateFromUpdaterCheck(result: {
   error: string;
 }): Partial<AppUpdateState> {
   const cached = Updater.updateInfo();
+  const latestVersion = result.version?.trim() || cached?.version?.trim() || undefined;
   return {
-    latestVersion: result.version || cached?.version || undefined,
-    updateAvailable: result.updateAvailable,
-    updateReady: cached?.updateReady ?? result.updateReady,
-    error: result.error || undefined,
+    latestVersion,
+    updateAvailable: Boolean(result.updateAvailable),
+    updateReady: Boolean(cached?.updateReady ?? result.updateReady),
+    error: result.error?.trim() || undefined,
   };
+}
+
+/** Re-push cached updater state after the shell webview connects (init may run too early). */
+export function notifyAppUpdateState(): void {
+  sendState?.(currentState);
 }
 
 export function setAppUpdateSender(fn: SendUpdateState): void {
@@ -77,7 +83,7 @@ export function startAppUpdateStatusListener(): void {
 
 export async function getAppInfo(): Promise<AppUpdateState> {
   const local = await Updater.getLocalInfo();
-  const version = local.version || DEV_FALLBACK_VERSION;
+  const version = local.version?.trim() || DEV_FALLBACK_VERSION?.trim() || "0.0.0";
   const channel = local.channel || "dev";
   const updatesEnabled = channel !== "dev" && Boolean(local.baseUrl?.trim());
   return pushState({
@@ -99,14 +105,12 @@ export async function checkForUpdates(): Promise<AppUpdateState> {
   }
   try {
     const result = await Updater.checkForUpdate();
+    const patch = stateFromUpdaterCheck(result);
     desktopLog(
       "bizshuffle-bun",
-      `update check: available=${result.updateAvailable} ready=${result.updateReady} err=${result.error}`
+      `update check: available=${patch.updateAvailable} ready=${patch.updateReady} latest=${patch.latestVersion ?? "(none)"} err=${patch.error ?? ""}`
     );
-    return pushState({
-      ...stateFromUpdaterCheck(result),
-      downloading: false,
-    });
+    return pushState({ ...patch, downloading: false });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     desktopLog("bizshuffle-bun", `update check failed: ${msg}`);

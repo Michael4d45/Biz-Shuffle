@@ -201,22 +201,26 @@ function depsPanelHtml(): string {
 function footerHtml(): string {
   const { version, channel, updateAvailable, updateReady, downloading, latestVersion, status } =
     updateState;
+  const ver = (version?.trim() || "…").trim();
+  const latest = latestVersion?.trim() || "";
+  const ready = Boolean(updateReady);
+  const available = Boolean(updateAvailable);
   const devSuffix = channel === "dev" ? " (dev)" : "";
   const versionLabel =
-    updateAvailable && latestVersion && !updateReady
-      ? `v${escapeHtml(version)} → v${escapeHtml(latestVersion)}`
-      : `v${escapeHtml(version)}${devSuffix}`;
+    available && latest && !ready
+      ? `v${escapeHtml(ver)} → v${escapeHtml(latest)}`
+      : `v${escapeHtml(ver)}${devSuffix}`;
 
   let updateBtn = "";
-  if (updateAvailable || updateReady) {
-    const label = updateReady
+  if (available || ready) {
+    const label = ready
       ? "Restart to update"
       : downloading
         ? escapeHtml(status || "Downloading…")
-        : latestVersion
-          ? `Update to v${escapeHtml(latestVersion)}`
+        : latest
+          ? `Update to v${escapeHtml(latest)}`
           : "Update available";
-    const disabled = downloading && !updateReady ? "disabled" : "";
+    const disabled = downloading && !ready ? "disabled" : "";
     updateBtn = `<button type="button" class="link update-btn" id="update-btn" ${disabled}>${label}</button>`;
   }
 
@@ -241,7 +245,7 @@ function wireDepsPanel(): void {
 
 function wireFooterButtons(): void {
   document.getElementById("update-btn")?.addEventListener("click", () => {
-    if (updateState.downloading && !updateState.updateReady) return;
+    if (updateState.downloading && !Boolean(updateState.updateReady)) return;
     void (async () => {
       try {
         await rpc.request.installUpdate({});
@@ -319,6 +323,8 @@ async function loadDependencies(): Promise<void> {
 async function loadAppInfo(): Promise<void> {
   try {
     updateState = await rpc.request.getAppInfo({});
+    patchFooter();
+    updateState = await rpc.request.checkForUpdates({});
     patchFooter();
   } catch (e) {
     slog(`getAppInfo failed: ${e}`);

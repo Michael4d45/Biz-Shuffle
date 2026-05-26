@@ -8,6 +8,7 @@ import {
   getAppInfo,
   initAppUpdates,
   installUpdate,
+  notifyAppUpdateState,
   setAppUpdateSender,
 } from "./app-updates.js";
 import {
@@ -393,6 +394,8 @@ function defineShellRpc() {
         },
         shellReady: () => {
           refreshDependencies(dataDir());
+          notifyAppUpdateState();
+          void checkForUpdates();
         },
       } as NonNullable<
         Parameters<typeof defineElectrobunRPC<ShellRPCSchema>>[1]["handlers"]
