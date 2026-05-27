@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { buildLanShareUrls, isLocalOnlyBind, resolveShareUrls } from "./share-urls.js";
+import {
+  buildLanShareUrls,
+  discoveryAdvertiseHost,
+  isLocalOnlyBind,
+  resolveShareUrls,
+} from "./share-urls.js";
 
 describe("share-urls", () => {
   it("marks loopback bind as local only", () => {
@@ -21,5 +26,11 @@ describe("share-urls", () => {
     const urls = await resolveShareUrls("127.0.0.1", 8080, async () => "203.0.113.5");
     expect(urls.local_only).toBe(true);
     expect(urls.wan).toBeNull();
+  });
+
+  it("advertises a LAN IP for wildcard discovery bind", () => {
+    const host = discoveryAdvertiseHost("0.0.0.0");
+    expect(host).not.toBe("0.0.0.0");
+    expect(isLocalOnlyBind(host)).toBe(false);
   });
 });

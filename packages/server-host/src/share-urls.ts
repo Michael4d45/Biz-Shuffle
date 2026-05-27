@@ -45,6 +45,16 @@ export function isLocalOnlyBind(listenHost: string): boolean {
   return isLoopbackHost(listenHost);
 }
 
+/** Host to put in UDP discovery when the socket bind is a wildcard. */
+export function discoveryAdvertiseHost(bindHost: string): string {
+  if (isLoopbackHost(bindHost)) return bindHost;
+  if (isWildcardBind(bindHost)) {
+    const ips = lanIpv4Addresses();
+    return ips[0] ?? "127.0.0.1";
+  }
+  return bindHost;
+}
+
 export async function resolveShareUrls(
   listenHost: string,
   port: number,

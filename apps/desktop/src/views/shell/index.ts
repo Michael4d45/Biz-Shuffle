@@ -72,6 +72,7 @@ let statusLine = "";
 let discovered: { label: string; url: string; isHosted: boolean }[] = [];
 let saveSettingsTimer: ReturnType<typeof setTimeout> | null = null;
 let settingsLoaded = false;
+let captureFormFromDom = true;
 
 const root = document.getElementById("root");
 if (!root) {
@@ -144,6 +145,7 @@ async function loadShellSettingsFromDisk(): Promise<void> {
     const settings = await rpc.request.getShellSettings({});
     applySettings(settings);
     settingsLoaded = true;
+    captureFormFromDom = false;
     render();
   } catch (e) {
     slog(`getShellSettings failed: ${e}`);
@@ -518,7 +520,10 @@ function render(): void {
     slog("render skipped — no #root");
     return;
   }
-  captureFormState();
+  if (captureFormFromDom && settingsLoaded) {
+    captureFormState();
+  }
+  captureFormFromDom = true;
   const savedFocus = saveFocus();
   slog(`render:${view}`);
   const deps = depsPanelHtml();

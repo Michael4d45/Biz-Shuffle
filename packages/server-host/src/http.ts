@@ -49,9 +49,8 @@ async function route(server: BizShuffleServer, req: Request): Promise<Response> 
   }
 
   if (method === "GET" && pathname === "/api/share_urls") {
-    const st = server.snapshotState();
-    const host = st.host ?? "127.0.0.1";
-    const port = st.port ?? 8080;
+    const host = server.getBindHost();
+    const port = server.getListeningPort();
     try {
       const urls = await resolveShareUrls(host, port);
       return json(urls);

@@ -17,6 +17,8 @@ import { createDiscoveryBroadcaster, type DiscoveryBroadcaster } from "./discove
 import { startBizShuffleServe, type BizShuffleServe } from "./serve.js";
 import { resolveAdminStaticDir } from "./static-path.js";
 import { syncCatalogFromRoms } from "./rom-catalog.js";
+import { discoveryAdvertiseHost } from "./share-urls.js";
+
 export class BizShuffleServer {
   readonly session = new ServerSession();
   readonly persistence: Persistence;
@@ -28,11 +30,15 @@ export class BizShuffleServer {
 
   readonly dataDir: string;
   readonly adminStaticDir: string;
+  private bindHost = "127.0.0.1";
   private listenHost = "127.0.0.1";
   private listenPort = 8080;
   constructor(config?: Partial<ServerConfig>) {
     this.dataDir = config?.dataDir ?? ".";
-    if (config?.host) this.listenHost = config.host;
+    if (config?.host) {
+      this.bindHost = config.host;
+      this.listenHost = config.host;
+    }
     if (config?.port !== undefined) this.listenPort = config.port;
     this.adminStaticDir = resolveAdminStaticDir({
       explicit: config?.staticDir,
@@ -57,6 +63,15 @@ export class BizShuffleServer {
     return `http://${this.listenHost}:${this.listenPort}`;
   }
 
+  /** Actual socket bind address (e.g. `0.0.0.0`), not the local admin URL host. */
+  getBindHost(): string {
+    return this.bindHost;
+  }
+
+  getListeningPort(): number {
+    return this.listenPort;
+  }
+
   snapshotState(): ServerState {
     return this.session.snapshot;
   }
@@ -69,14 +84,15 @@ export class BizShuffleServer {
   async start(): Promise<void> {
     await this.persistence.load();
     await syncCatalogFromRoms(this);
+    const bind = this.bindHost;
     const serve = startBizShuffleServe(this, {
-      host: this.listenHost,
+      host: bind,
       port: this.listenPort,
     });
     this.serve = serve;
     this.wsHub = serve.hub;
     this.listenPort = serve.bun.port ?? this.listenPort;
-    const hostname = serve.bun.hostname ?? this.listenHost;
+    const hostname = serve.bun.hostname ?? bind;
     this.listenHost =
       hostname === "::" || hostname === "0.0.0.0" || !hostname ? "127.0.0.1" : hostname;
     this.updateStateAndPersist((st) => {
@@ -84,7 +100,7 @@ export class BizShuffleServer {
       st.port = this.listenPort;
     });
     this.discovery = createDiscoveryBroadcaster(
-      this.listenHost,
+      discoveryAdvertiseHost(bind),
       this.listenPort,
       this.getServerName()
     );
