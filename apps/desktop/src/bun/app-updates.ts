@@ -63,6 +63,20 @@ export function notifyAppUpdateState(): void {
   sendState?.(currentState);
 }
 
+export function getAppUpdateState(): AppUpdateState {
+  return currentState;
+}
+
+export function shellVersionLabel(state: AppUpdateState = currentState): string {
+  const ver = formatVersion(state.version);
+  const devSuffix = state.channel === "dev" ? " (dev)" : "";
+  const latest = state.latestVersion?.trim();
+  if (state.updateAvailable && latest && latest !== ver && !state.updateReady) {
+    return `v${ver} → v${latest}`;
+  }
+  return `v${ver}${devSuffix}`;
+}
+
 export function setAppUpdateSender(fn: SendUpdateState): void {
   sendState = fn;
 }

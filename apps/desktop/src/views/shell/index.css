@@ -15,26 +15,21 @@ body {
   overflow: hidden;
 }
 
-/* CEF webviews often miss % height on first paint; inset anchors to the view size. */
 #root {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
+  height: 100%;
   overflow: hidden;
 }
 
 .shell {
-  flex: 1 1 auto;
+  height: 100%;
   width: 100%;
   max-width: 28rem;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 1.5rem 1.5rem 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
 }
 
 .shell-body {
@@ -52,6 +47,11 @@ header h1 {
   margin: 0 0 1rem;
   color: #9aa0b0;
   font-size: 0.95rem;
+}
+
+.boot-fallback {
+  margin: 1.5rem;
+  color: #9aa0b0;
 }
 
 .deps-panel {
@@ -267,36 +267,27 @@ header h1 {
   flex-wrap: wrap;
 }
 
-.app-footer {
-  flex-shrink: 0;
-  margin-top: 0;
-  padding-top: 1.25rem;
-  padding-bottom: 0.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  font-size: 0.8rem;
-  color: #9aa0b0;
-  border-top: 1px solid #1e2430;
-}
-
-.footer-row {
+.version-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #1e2430;
+  font-size: 0.8rem;
+  color: #9aa0b0;
 }
 
-.bizhawk-row {
-  color: #8a90a0;
+#app-version {
+  color: #9aa0b0;
 }
 
-.app-version {
-  flex-shrink: 0;
+#footer-update-slot:empty {
+  display: none;
 }
 
-.update-btn:disabled,
-.bizhawk-update-btn:disabled {
+.update-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }

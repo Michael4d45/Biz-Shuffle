@@ -6,10 +6,12 @@ import { BrowserWindow, Utils, defineElectrobunRPC } from "electrobun/bun";
 import {
   checkForUpdates,
   getAppInfo,
+  getAppUpdateState,
   initAppUpdates,
   installUpdate,
   notifyAppUpdateState,
   setAppUpdateSender,
+  shellVersionLabel,
 } from "./app-updates.js";
 import {
   initDependencies,
@@ -96,6 +98,53 @@ function sendStatus(msg: string): void {
 
 function sendUpdateState(state: ShellRPCSchema["webview"]["messages"]["updateState"]): void {
   shellRpcSend()?.updateState(state);
+  pushShellVersionToWebview(state);
+}
+
+function updateShellWindowTitle(state = getAppUpdateState()): void {
+  const win = shellWindow;
+  if (!win) return;
+  const label = shellVersionLabel(state);
+  try {
+    win.setTitle(`BizShuffle ${label}`);
+  } catch (err) {
+    desktopLog("bizshuffle-bun", `setTitle failed: ${err}`);
+  }
+}
+
+function pushShellVersionToWebview(state = getAppUpdateState()): void {
+  const win = shellWindow;
+  if (!win?.webview) return;
+  const label = shellVersionLabel(state);
+  updateShellWindowTitle(state);
+  const js = `(() => { const e = document.getElementById("app-version"); if (e) e.textContent = ${JSON.stringify(label)}; })();`;
+  try {
+    win.webview.executeJavascript(js);
+  } catch (err) {
+    desktopLog("bizshuffle-bun", `shell version push failed: ${err}`);
+  }
+}
+
+/** CEF on Windows often fails to composite text until the webview is resized (GPU process errors). */
+function nudgeShellWebviewPaint(): void {
+  const win = shellWindow;
+  if (!win) return;
+  try {
+    const { width, height } = win.getSize();
+    win.setSize(width + 1, height);
+    win.setSize(width, height);
+    desktopLog("bizshuffle-bun", "shell webview paint nudge");
+  } catch (err) {
+    desktopLog("bizshuffle-bun", `shell paint nudge failed: ${err}`);
+  }
+}
+
+function runShellFooterDiagnostics(tag: string): void {
+  try {
+    shellWindow?.webview.executeJavascript(`window.__bizshuffleFooterDiag?.(${JSON.stringify(tag)});`);
+  } catch {
+    /* webview not ready */
+  }
 }
 
 function sendDependenciesState(
@@ -449,6 +498,18 @@ shellWindow = new BrowserWindow({
 shellWindow.on("close", () => {
   desktopLog("bizshuffle-bun", "shell window closed");
   shellWindow = null;
+});
+
+shellWindow.webview.on("dom-ready", () => {
+  desktopLog("bizshuffle-bun", "shell webview dom-ready");
+  notifyAppUpdateState();
+  pushShellVersionToWebview();
+  nudgeShellWebviewPaint();
+  runShellFooterDiagnostics("dom-ready");
+});
+
+shellWindow.on("resize", () => {
+  pushShellVersionToWebview();
 });
 
 desktopLog("bizshuffle-bun", "shell window created");

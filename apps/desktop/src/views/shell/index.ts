@@ -13,7 +13,7 @@ const defaultDepsState: DependenciesState = {
 };
 
 const defaultUpdateState: AppUpdateState = {
-  version: "…",
+  version: "...",
   channel: "dev",
   updatesEnabled: false,
   updateAvailable: false,
@@ -35,7 +35,7 @@ const rpc = Electroview.defineRPC<ShellRPCSchema>({
       },
       updateState: (state) => {
         mergeUpdateState(state);
-        patchFooter();
+        syncFooter();
       },
       dependenciesState: (state) => {
         depsState = state;
@@ -177,7 +177,7 @@ function escapeHtml(text: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function displayVersion(value: unknown, fallback = "…"): string {
+function displayVersion(value: unknown, fallback = "..."): string {
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (trimmed) return trimmed;
@@ -237,33 +237,89 @@ function depsPanelHtml(): string {
   return `<section class="deps-panel" id="deps-panel">${rows}${blocked}</section>`;
 }
 
-function footerHtml(): string {
-  const { channel, updateAvailable, updateReady, downloading, latestVersion, status } = updateState;
+function versionLabelText(): string {
+  const { channel, updateAvailable, updateReady, latestVersion } = updateState;
   const ver = displayVersion(updateState.version);
   const latest = displayVersion(latestVersion, "");
   const ready = Boolean(updateReady);
   const available = Boolean(updateAvailable);
   const devSuffix = channel === "dev" ? " (dev)" : "";
-  const versionLabel =
-    available && latest && !ready
-      ? `v${escapeHtml(ver)} → v${escapeHtml(latest)}`
-      : `v${escapeHtml(ver)}${devSuffix}`;
-
-  let updateBtn = "";
-  if (available || ready) {
-    const label = ready
-      ? "Restart to update"
-      : downloading
-        ? escapeHtml(status || "Downloading…")
-        : latest
-          ? `Update to v${escapeHtml(latest)}`
-          : "Update available";
-    const disabled = downloading && !ready ? "disabled" : "";
-    updateBtn = `<button type="button" class="link update-btn" id="update-btn" ${disabled}>${label}</button>`;
-  }
-
-  return `<footer class="app-footer"><div class="footer-row"><span class="app-version">${versionLabel}</span>${updateBtn}</div></footer>`;
+  return available && latest && !ready
+    ? `v${ver} → v${latest}`
+    : `v${ver}${devSuffix}`;
 }
+
+function updateButtonHtml(): string {
+  const { updateAvailable, updateReady, downloading, latestVersion, status } = updateState;
+  const latest = displayVersion(latestVersion, "");
+  const ready = Boolean(updateReady);
+  const available = Boolean(updateAvailable);
+  if (!available && !ready) return "";
+  const label = ready
+    ? "Restart to update"
+    : downloading
+      ? status || "Downloading…"
+      : latest
+        ? `Update to v${latest}`
+        : "Update available";
+  const disabled = downloading && !ready ? "disabled" : "";
+  return `<button type="button" class="link update-btn" id="update-btn" ${disabled}>${escapeHtml(label)}</button>`;
+}
+
+function versionBarHtml(): string {
+  return `<div class="version-bar"><span id="app-version">${escapeHtml(versionLabelText())}</span><span id="footer-update-slot">${updateButtonHtml()}</span></div>`;
+}
+
+function syncFooter(): void {
+  const versionEl = document.getElementById("app-version");
+  const slot = document.getElementById("footer-update-slot");
+  if (!versionEl) {
+    slog(`syncFooter: #app-version missing`);
+    logFooterDiagnostics("syncFooter-missing");
+    return;
+  }
+  const label = versionLabelText();
+  versionEl.textContent = label;
+  if (slot) {
+    slot.innerHTML = updateButtonHtml();
+    wireFooterButtons();
+  }
+}
+
+/** Log layout/computed-style facts to desktop-smoke.log (via bun diag RPC). */
+function logFooterDiagnostics(tag: string): void {
+  const el = document.getElementById("app-version");
+  const bar = document.querySelector(".version-bar");
+  const parts = [
+    `footer-diag:${tag}`,
+    `viewport=${window.innerWidth}x${window.innerHeight}`,
+    `docH=${document.documentElement.clientHeight}`,
+  ];
+  if (!el) {
+    parts.push("app-version=MISSING");
+  } else {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    parts.push(`text="${el.textContent ?? ""}"`);
+    parts.push(
+      `rect=${r.width.toFixed(1)}x${r.height.toFixed(1)}@(${r.left.toFixed(1)},${r.top.toFixed(1)})`
+    );
+    parts.push(`color=${cs.color} vis=${cs.visibility} opacity=${cs.opacity} fontSize=${cs.fontSize}`);
+  }
+  if (bar) {
+    const br = bar.getBoundingClientRect();
+    parts.push(`barH=${br.height.toFixed(1)} barTop=${br.top.toFixed(1)}`);
+  }
+  slog(parts.join(" "));
+}
+
+declare global {
+  interface Window {
+    __bizshuffleFooterDiag?: (tag: string) => void;
+  }
+}
+
+window.__bizshuffleFooterDiag = logFooterDiagnostics;
 
 function wireDepsPanel(): void {
   document.querySelectorAll(".deps-action-btn").forEach((btn) => {
@@ -299,11 +355,18 @@ function syncDepsUi(): void {
   const panel = document.getElementById("deps-panel");
   if (!html) {
     panel?.remove();
-    render();
+    updatePlayButtons();
     return;
   }
   if (panel) {
     panel.outerHTML = html;
+    wireDepsPanel();
+    updatePlayButtons();
+    return;
+  }
+  const shellBody = document.querySelector(".shell-body");
+  if (shellBody) {
+    shellBody.insertAdjacentHTML("afterbegin", html);
     wireDepsPanel();
     updatePlayButtons();
     return;
@@ -313,30 +376,6 @@ function syncDepsUi(): void {
 
 function patchDepsPanel(): void {
   syncDepsUi();
-}
-
-function patchFooter(): void {
-  const footer = document.querySelector(".app-footer");
-  if (!footer) {
-    slog(`patchFooter skipped — no footer (version=${displayVersion(updateState.version)})`);
-    return;
-  }
-  try {
-    footer.outerHTML = footerHtml();
-    wireFooterButtons();
-    scheduleLayoutRefresh();
-  } catch (e) {
-    slog(`patchFooter failed: ${e}`);
-  }
-}
-
-/** CEF often skips the first flex layout pass until the webview is resized. */
-function scheduleLayoutRefresh(): void {
-  const nudge = (): void => {
-    void document.documentElement.offsetHeight;
-    globalThis.dispatchEvent(new Event("resize"));
-  };
-  requestAnimationFrame(() => requestAnimationFrame(nudge));
 }
 
 function updatePlayButtons(): void {
@@ -378,9 +417,9 @@ async function loadDependencies(): Promise<void> {
 async function loadAppInfo(): Promise<void> {
   try {
     mergeUpdateState(await rpc.request.getAppInfo({}));
-    patchFooter();
+    syncFooter();
     mergeUpdateState(await rpc.request.checkForUpdates({}));
-    patchFooter();
+    syncFooter();
     slog(`app info loaded: version=${displayVersion(updateState.version)}`);
   } catch (e) {
     slog(`getAppInfo failed: ${e}`);
@@ -483,7 +522,6 @@ function render(): void {
   const savedFocus = saveFocus();
   slog(`render:${view}`);
   const deps = depsPanelHtml();
-  const footer = footerHtml();
 
   if (view === "join") {
     root.innerHTML = `
@@ -501,8 +539,8 @@ function render(): void {
             <button type="submit" ${busy || depsState.playBlocked ? "disabled" : ""}>Join</button>
           </form>
           <p class="status" id="status">${escapeHtml(statusLine)}</p>
+          ${versionBarHtml()}
         </div>
-        ${footer}
       </div>`;
     document.getElementById("back")!.onclick = () => {
       view = "welcome";
@@ -515,10 +553,9 @@ function render(): void {
     wireJoinFormInputs();
     wirePickServerButtons();
     wireDepsPanel();
-    wireFooterButtons();
+    syncFooter();
     updatePlayButtons();
     restoreFocus(savedFocus);
-    scheduleLayoutRefresh();
     return;
   }
 
@@ -550,8 +587,8 @@ function render(): void {
           <button type="button" class="link" id="refresh-disc">Refresh discovery</button>
         </div>
         <p class="status" id="status">${escapeHtml(statusLine)}</p>
+        ${versionBarHtml()}
       </div>
-      ${footer}
     </div>`;
 
   document.getElementById("host")!.onclick = () => void onHost();
@@ -564,10 +601,9 @@ function render(): void {
   document.getElementById("refresh-disc")!.onclick = () => void refreshDiscovery(true);
   wirePickServerButtons();
   wireDepsPanel();
-  wireFooterButtons();
+  syncFooter();
   updatePlayButtons();
   restoreFocus(savedFocus);
-  scheduleLayoutRefresh();
   slog(`render:welcome done — host button=${document.getElementById("host") ? "yes" : "no"}`);
 }
 
@@ -622,6 +658,8 @@ async function onJoin(): Promise<void> {
 }
 
 render();
+syncFooter();
+logFooterDiagnostics("boot");
 slog("initial render complete");
 
 void (async () => {
