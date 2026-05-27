@@ -121,6 +121,11 @@ export class FakeLuaPeer {
 
     this.socket?.write(`ACK|${id}\n`);
   }
+
+  /** Simulate `SendCommand` from a Lua plugin to the connected BizhawkIpc client. */
+  emitPluginCommand(line: string): void {
+    this.socket?.write(`${line.trim()}\n`);
+  }
 }
 
 export async function waitForFile(path: string, timeoutMs = 5000): Promise<void> {

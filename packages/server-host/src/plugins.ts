@@ -10,6 +10,7 @@ import { join } from "node:path";
 import {
   migratePluginStatus,
   parseKv,
+  parseSettingsMeta,
   writeKv,
   type Plugin,
   type PluginStatus,
@@ -33,12 +34,14 @@ export function saveSettingsKv(settings: Record<string, string>, path: string): 
 export function loadPluginMeta(metaPath: string, pluginName: string): Partial<Plugin> {
   if (!existsSync(metaPath)) return { name: pluginName };
   const meta = parseKv(readFileSync(metaPath, "utf8"));
+  const settings_meta = parseSettingsMeta(meta);
   return {
     name: meta.name ?? pluginName,
     version: meta.version ?? "",
     description: meta.description ?? "",
     author: meta.author ?? "",
     bizhawk_version: meta.bizhawk_version ?? "",
+    ...(Object.keys(settings_meta).length > 0 ? { settings_meta } : {}),
   };
 }
 
@@ -70,6 +73,7 @@ export function loadPluginMetadata(pluginsDir: string, pluginName: string): Plug
     author: partial.author ?? "",
     bizhawk_version: partial.bizhawk_version ?? "",
     status,
+    ...(partial.settings_meta ? { settings_meta: partial.settings_meta } : {}),
   };
 }
 

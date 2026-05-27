@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import type { LuaCommand } from "@bizshuffle-bun/protocol";
 import { BizhawkIpc, reserveLuaPort, writeLuaPortFile } from "./bizhawk-ipc.js";
 import { ClientApi } from "./api.js";
 import { Controller } from "./controller.js";
@@ -70,6 +71,9 @@ export class ClientRuntime {
         onReady: () => {
           void this.onBizhawkReady();
         },
+        onLuaCommand: (lua) => {
+          void this.forwardLuaCommand(lua);
+        },
       });
       const launched = opts.bizhawkLaunched !== false;
       if (!launched) this.bipc.setBizhawkLaunched(false);
@@ -124,6 +128,15 @@ export class ClientRuntime {
       await new Promise((r) => setTimeout(r, 25));
     }
     throw new Error("Bizhawk IPC not ready");
+  }
+
+  private async forwardLuaCommand(lua: LuaCommand): Promise<void> {
+    if (!this.ws?.isConnected()) return;
+    await this.ws.send({
+      cmd: "lua_command",
+      id: `lua-${Date.now()}`,
+      payload: { Kind: lua.Kind, Fields: lua.Fields, Raw: lua.Raw },
+    });
   }
 
   private async onBizhawkReady(): Promise<void> {

@@ -1,6 +1,11 @@
 import { writeFileSync } from "node:fs";
 import type { Socket } from "bun";
-import { IPC_TIMEOUT_MS, luaReconnectDelayMs } from "@bizshuffle-bun/protocol";
+import {
+  IPC_TIMEOUT_MS,
+  luaReconnectDelayMs,
+  parseLuaCommand,
+  type LuaCommand,
+} from "@bizshuffle-bun/protocol";
 import { readText } from "./bun-io.js";
 
 const MSG_ACK = "ACK";
@@ -34,6 +39,8 @@ export interface BizhawkIpcOptions {
   timeoutMs?: number;
   /** Called when Lua sends HELLO and IPC becomes ready. */
   onReady?: () => void;
+  /** Called when a plugin invokes SendCommand (incoming CMD from Lua). */
+  onLuaCommand?: (cmd: LuaCommand) => void;
 }
 
 type Pending = { id: string; resolve: (ok: boolean) => void; timer: ReturnType<typeof setTimeout> };
@@ -265,6 +272,17 @@ export class BizhawkIpc {
         this.pending.resolve(head === MSG_ACK);
         this.pending = null;
         void this.processQueue();
+      }
+      return;
+    }
+    if (head === "CMD") {
+      try {
+        const lua = parseLuaCommand(line);
+        if (["swap", "swap_me", "message"].includes(lua.Kind)) {
+          this.opts.onLuaCommand?.(lua);
+        }
+      } catch {
+        /* ignore malformed plugin lines */
       }
     }
   }

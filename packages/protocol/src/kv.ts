@@ -36,3 +36,29 @@ export function migratePluginStatus(meta: Record<string, string>): Record<string
   }
   return settings;
 }
+
+export type PluginSettingMeta = {
+  type: string;
+  options?: string[];
+};
+
+/** Parse `setting.<key>.type` / `setting.<key>.options` entries from meta.kv. */
+export function parseSettingsMeta(meta: Record<string, string>): Record<string, PluginSettingMeta> {
+  const result: Record<string, PluginSettingMeta> = {};
+  for (const [key, value] of Object.entries(meta)) {
+    const match = /^setting\.([^.]+)\.(type|options)$/.exec(key);
+    if (!match) continue;
+    const settingKey = match[1]!;
+    const field = match[2]!;
+    const entry = (result[settingKey] ??= { type: "text" });
+    if (field === "type") {
+      entry.type = value;
+    } else {
+      entry.options = value
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  }
+  return result;
+}

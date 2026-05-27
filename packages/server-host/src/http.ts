@@ -422,7 +422,9 @@ async function route(server: BizShuffleServer, req: Request): Promise<Response> 
       return json(loadSettingsKv(join(dataDir, "plugins", name, "settings.kv")));
     }
     if (method === "POST") {
-      const settings = (await readJsonBody(req)) as Record<string, string>;
+      const incoming = (await readJsonBody(req)) as Record<string, string>;
+      const settingsPath = join(dataDir, "plugins", name, "settings.kv");
+      const settings = { ...loadSettingsKv(settingsPath), ...incoming };
       if (!settings.status) return text("status field is required", 400);
       if (settings.status !== "enabled" && settings.status !== "disabled") {
         return text("status must be 'enabled' or 'disabled'", 400);

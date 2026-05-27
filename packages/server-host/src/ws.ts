@@ -243,13 +243,20 @@ export class WsHub {
         return;
       }
       case "lua_command": {
-        const lua = cmd.payload as { Kind?: string; kind?: string } | undefined;
+        const lua = cmd.payload as
+          | { Kind?: string; kind?: string; Fields?: Record<string, string> }
+          | undefined;
         const kind = lua?.Kind ?? lua?.kind;
+        const message = lua?.Fields?.message;
         if (kind === "swap") {
           await this.server.performSwap();
+          if (message) this.server.sendMessage(message, 3, 10, 10, 12, "#FFFFFF", "#000000");
         } else if (kind === "swap_me") {
           const name = this.findPlayerName(client);
           if (name) await this.server.performRandomSwapForPlayer(name);
+          if (message) this.server.sendMessage(message, 3, 10, 10, 12, "#FFFFFF", "#000000");
+        } else if (kind === "message" && message) {
+          this.server.sendMessage(message, 3, 10, 10, 12, "#FFFFFF", "#000000");
         }
         return;
       }

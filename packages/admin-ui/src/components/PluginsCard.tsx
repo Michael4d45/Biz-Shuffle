@@ -54,7 +54,7 @@ export function PluginsCard({ trigger, pushLog }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [pushLog]);
+  }, []);
 
   const entries = Object.entries(plugins);
 
@@ -152,6 +152,7 @@ export function PluginsCard({ trigger, pushLog }: Props) {
         onClose={() => setEditName(null)}
         onSaved={() => void loadPlugins()}
         onLog={pushLog}
+        onReload={(name) => trigger(`/api/plugins/${encodeURIComponent(name)}/reload`, undefined)}
       />
     </>
   );

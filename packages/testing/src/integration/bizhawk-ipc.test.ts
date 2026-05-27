@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import type { LuaCommand } from "@bizshuffle-bun/protocol";
 import { BizhawkIpc, writeLuaPortFile } from "@bizshuffle-bun/client-host";
 import { FakeLuaPeer } from "../fakes/fake-lua-peer.js";
 
@@ -64,5 +65,32 @@ describe("BizhawkIpc + FakeLuaPeer integration", () => {
     expect(peer.lastCmdParts[7]).toBe("40");
     expect(peer.lastCmdParts[8]).toBe("#ff0000");
     expect(peer.lastCmdParts[9]).toBe("#000000");
+  }, 15_000);
+
+  it("forwards plugin SendCommand lines via onLuaCommand", async () => {
+    const received: LuaCommand[] = [];
+    peer = await FakeLuaPeer.listen({ savesDir: dataDir });
+    writeLuaPortFile(join(dataDir, "lua_server_port.txt"), peer.port);
+
+    bipc = new BizhawkIpc({
+      portFile: join(dataDir, "lua_server_port.txt"),
+      onLuaCommand: (cmd) => received.push(cmd),
+    });
+    await bipc.start();
+
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline && !bipc.isReady()) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(bipc.isReady()).toBe(true);
+
+    peer.emitPluginCommand(
+      "CMD|swap_me|message=Memory Tracker: test door 32792 -> 32785 (Location change)"
+    );
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(received).toHaveLength(1);
+    expect(received[0]?.Kind).toBe("swap_me");
+    expect(received[0]?.Fields.message).toContain("32792 -> 32785");
   }, 15_000);
 });
