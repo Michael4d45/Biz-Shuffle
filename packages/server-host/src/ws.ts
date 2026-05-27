@@ -133,6 +133,7 @@ export class WsHub {
         const pl = st.players[playerName];
         if (pl) {
           pl.connected = false;
+          pl.bizhawk_ready = false;
           st.players[playerName] = pl;
         }
       });

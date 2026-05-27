@@ -39,6 +39,8 @@ export interface BizhawkIpcOptions {
   timeoutMs?: number;
   /** Called when Lua sends HELLO and IPC becomes ready. */
   onReady?: () => void;
+  /** Called when IPC was ready and is no longer (BizHawk closed or Lua socket dropped). */
+  onNotReady?: () => void;
   /** Called when a plugin invokes SendCommand (incoming CMD from Lua). */
   onLuaCommand?: (cmd: LuaCommand) => void;
 }
@@ -109,7 +111,7 @@ export class BizhawkIpc {
 
   setBizhawkLaunched(launched: boolean): void {
     this.bizhawkLaunched = launched;
-    if (!launched) this.ready = false;
+    if (!launched) this.markNotReady();
     if (launched) void this.scheduleReconnect(0);
   }
 
@@ -129,7 +131,7 @@ export class BizhawkIpc {
 
   stop(): void {
     this.stopped = true;
-    this.ready = false;
+    this.markNotReady();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -233,8 +235,14 @@ export class BizhawkIpc {
     this.buffer = "";
   }
 
-  private onSocketClose(): void {
+  private markNotReady(): void {
+    const wasReady = this.ready;
     this.ready = false;
+    if (wasReady) this.opts.onNotReady?.();
+  }
+
+  private onSocketClose(): void {
+    this.markNotReady();
     this.socket = null;
     if (this.pending) {
       clearTimeout(this.pending.timer);

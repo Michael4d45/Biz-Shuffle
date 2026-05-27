@@ -87,6 +87,12 @@ describe("BizShuffleServer integration", () => {
       ws.close();
       setTimeout(resolve, 500);
     });
+
+    const afterClose = (await fetch(`${server.url}/state.json`).then((r) => r.json())) as {
+      state: { players: Record<string, { connected: boolean; bizhawk_ready: boolean }> };
+    };
+    expect(afterClose.state.players["test-player"]?.connected).toBe(false);
+    expect(afterClose.state.players["test-player"]?.bizhawk_ready).toBe(false);
   }, 10000);
 
   it("start and pause via HTTP API", async () => {

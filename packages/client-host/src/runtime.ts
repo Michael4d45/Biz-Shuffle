@@ -26,6 +26,8 @@ export interface ClientRuntimeOptions {
   luaPort?: number;
   /** When false, IPC waits until setBizhawkLaunched(true) (tests without BizHawk). */
   bizhawkLaunched?: boolean;
+  /** Called when BizHawk IPC is lost after being ready (desktop shell status, etc.). */
+  onBizhawkLost?: () => void;
 }
 
 export class ClientRuntime {
@@ -71,6 +73,9 @@ export class ClientRuntime {
         onReady: () => {
           void this.onBizhawkReady();
         },
+        onNotReady: () => {
+          this.onBizhawkLost();
+        },
         onLuaCommand: (lua) => {
           void this.forwardLuaCommand(lua);
         },
@@ -105,7 +110,7 @@ export class ClientRuntime {
     this.ws = new WsClient({
       wsUrl,
       playerName: opts.playerName,
-      bizhawkReady: this.bipc?.isReady() ?? false,
+      getBizhawkReady: () => this.bipc?.isReady() ?? false,
       signal: this.abort.signal,
       onCommand: (cmd) => void controller.handle(cmd),
       onConnected: () => {
@@ -116,7 +121,17 @@ export class ClientRuntime {
       },
     });
 
+    await this.connectToServer();
+  }
+
+  private async connectToServer(): Promise<void> {
+    if (!this.ws || this.abort?.signal.aborted) return;
     await this.ws.start();
+  }
+
+  private disconnectFromServer(): void {
+    this.ws?.stop();
+    this.connected = false;
   }
 
   /** Poll until Lua IPC handshake completes (for tests and Host & Play). */
@@ -140,7 +155,11 @@ export class ClientRuntime {
   }
 
   private async onBizhawkReady(): Promise<void> {
-    if (this.ws?.isConnected()) {
+    if (!this.ws || this.abort?.signal.aborted) return;
+    if (!this.ws.isConnected()) {
+      await this.connectToServer();
+    }
+    if (this.ws.isConnected()) {
       await this.ws.send({
         cmd: "status_update",
         id: `status-${Date.now()}`,
@@ -150,8 +169,14 @@ export class ClientRuntime {
     await this.controller?.onBizhawkReady();
   }
 
+  private onBizhawkLost(): void {
+    this.disconnectFromServer();
+    this.options.onBizhawkLost?.();
+  }
+
   setBizhawkLaunched(launched: boolean): void {
     this.bipc?.setBizhawkLaunched(launched);
+    if (!launched) this.disconnectFromServer();
   }
 
   stop(): void {

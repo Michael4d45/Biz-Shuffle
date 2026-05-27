@@ -7,6 +7,8 @@ const SETTLE_MS = 2500;
 
 export interface DesktopEmulatorOptions {
   mock?: boolean;
+  /** Called when BizHawk exits after a successful launch. */
+  onExited?: () => void;
 }
 
 /** Spawns BizHawk (EmuHawk) when joining a session — desktop main process only. */
@@ -14,10 +16,12 @@ export class DesktopEmulatorService {
   private proc: ChildProcess | null = null;
   private healthState: EmulatorState = "stopped";
   private readonly mock: boolean;
+  private readonly onExited?: () => void;
   private resolvedPath: string | null = null;
 
   constructor(options: DesktopEmulatorOptions = {}) {
     this.mock = options.mock ?? process.env.BIZSHUFFLE_EMULATOR_MOCK === "1";
+    this.onExited = options.onExited;
   }
 
   get state(): EmulatorState {
@@ -103,6 +107,7 @@ export class DesktopEmulatorService {
         } else {
           this.healthState = "stopped";
           this.proc = null;
+          this.onExited?.();
         }
       });
 

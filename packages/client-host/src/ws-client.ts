@@ -9,6 +9,8 @@ export interface WsClientOptions {
   wsUrl: string;
   playerName: string;
   bizhawkReady?: boolean;
+  /** Current BizHawk readiness for each reconnect hello (preferred over bizhawkReady). */
+  getBizhawkReady?: () => boolean;
   onCommand: (cmd: Command) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
@@ -20,21 +22,27 @@ export class WsClient {
   private sendQueue: Command[] = [];
   private running = false;
   private helloAcked = false;
-  readonly helloAck: Promise<void>;
+  private helloResolve: (() => void) | null = null;
+  helloAck!: Promise<void>;
 
   constructor(private readonly opts: WsClientOptions) {
-    let resolveHello!: () => void;
-    this.helloAck = new Promise((resolve) => {
-      resolveHello = resolve;
-    });
+    this.resetHelloHandshake();
     const origOnCommand = opts.onCommand;
     this.opts.onCommand = (cmd) => {
       if (cmd.cmd === "games_update" && !this.helloAcked) {
         this.helloAcked = true;
-        resolveHello();
+        this.helloResolve?.();
+        this.helloResolve = null;
       }
       origOnCommand(cmd);
     };
+  }
+
+  private resetHelloHandshake(): void {
+    this.helloAcked = false;
+    this.helloAck = new Promise<void>((resolve) => {
+      this.helloResolve = resolve;
+    });
   }
 
   async start(): Promise<void> {
@@ -48,6 +56,8 @@ export class WsClient {
     this.running = false;
     this.ws?.close();
     this.ws = null;
+    this.sendQueue = [];
+    this.resetHelloHandshake();
   }
 
   async send(cmd: Command): Promise<void> {
@@ -94,7 +104,7 @@ export class WsClient {
           id: `hello-${Date.now()}`,
           payload: {
             name: this.opts.playerName,
-            bizhawk_ready: this.opts.bizhawkReady ?? false,
+            bizhawk_ready: this.opts.getBizhawkReady?.() ?? this.opts.bizhawkReady ?? false,
           },
         };
         ws.send(JSON.stringify(hello));

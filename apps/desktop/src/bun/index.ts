@@ -57,7 +57,20 @@ let hostedBindHost: string | null = null;
 let hostedBindPort: number | null = null;
 let clientRuntime: ClientRuntime | null = null;
 let discoveryListener: DiscoveryListener | null = null;
-const emulator = new DesktopEmulatorService();
+let bizhawkLostNoticeSent = false;
+
+function notifyBizhawkLostToUser(): void {
+  if (bizhawkLostNoticeSent) return;
+  bizhawkLostNoticeSent = true;
+  sendStatus("BizHawk closed — disconnected from server");
+}
+
+const emulator = new DesktopEmulatorService({
+  onExited: () => {
+    clientRuntime?.setBizhawkLaunched(false);
+    notifyBizhawkLostToUser();
+  },
+});
 
 function dataDir(): string {
   const dir = join(homedir(), "BizShuffle");
@@ -369,11 +382,13 @@ async function startClient(
   options?: { luaPort?: number }
 ): Promise<void> {
   clientRuntime?.stop();
+  bizhawkLostNoticeSent = false;
   clientRuntime = new ClientRuntime({
     dataDir: dataDir(),
     serverUrl,
     playerName,
     enableDiscovery: false,
+    onBizhawkLost: notifyBizhawkLostToUser,
     ...(options?.luaPort != null ? { luaPort: options.luaPort } : {}),
   });
   desktopLog("bizshuffle-bun", `client connecting to ${serverUrl} as ${playerName}`);

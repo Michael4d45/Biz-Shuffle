@@ -67,6 +67,33 @@ describe("BizhawkIpc + FakeLuaPeer integration", () => {
     expect(peer.lastCmdParts[9]).toBe("#000000");
   }, 15_000);
 
+  it("calls onNotReady when the lua peer stops after handshake", async () => {
+    let notReadyCount = 0;
+    peer = await FakeLuaPeer.listen({ savesDir: dataDir });
+    writeLuaPortFile(join(dataDir, "lua_server_port.txt"), peer.port);
+
+    bipc = new BizhawkIpc({
+      portFile: join(dataDir, "lua_server_port.txt"),
+      onNotReady: () => {
+        notReadyCount++;
+      },
+    });
+    await bipc.start();
+
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline && !bipc.isReady()) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(bipc.isReady()).toBe(true);
+
+    peer.stop();
+    peer = null;
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(notReadyCount).toBe(1);
+    expect(bipc.isReady()).toBe(false);
+  }, 15_000);
+
   it("forwards plugin SendCommand lines via onLuaCommand", async () => {
     const received: LuaCommand[] = [];
     peer = await FakeLuaPeer.listen({ savesDir: dataDir });
