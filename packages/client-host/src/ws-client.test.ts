@@ -73,12 +73,18 @@ describe("Controller", () => {
     const sent: Command[] = [];
     let ready = false;
     const dataDir = join("/tmp", `bizshuffle-ctrl-${Date.now()}`);
-    const savesDir = join(dataDir, "saves");
     const romsDir = join(dataDir, "roms");
-    mkdirSync(savesDir, { recursive: true });
     mkdirSync(romsDir, { recursive: true });
-    writeFileSync(join(savesDir, "inst-1.state"), Buffer.alloc(1));
     writeFileSync(join(romsDir, "game.zip"), Buffer.alloc(1));
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("/save/")) {
+        return new Response(null, { status: 404 });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as unknown as typeof fetch;
 
     const bipc = {
       isReady: () => ready,
@@ -97,18 +103,22 @@ describe("Controller", () => {
         sent.push(cmd);
       },
     });
-    await controller.handle({
-      cmd: "swap",
-      id: "s-defer",
-      payload: { game: "game.zip", instance_id: "inst-1", skip_save: true },
-    });
-    expect(sent.some((c) => c.cmd === "ack")).toBe(false);
+    try {
+      await controller.handle({
+        cmd: "swap",
+        id: "s-defer",
+        payload: { game: "game.zip", instance_id: "inst-1", skip_save: true },
+      });
+      expect(sent.some((c) => c.cmd === "ack")).toBe(false);
 
-    ready = true;
-    await controller.onBizhawkReady();
-    expect(bipc.sendSave).not.toHaveBeenCalled();
-    expect(bipc.sendSwap).toHaveBeenCalled();
-    expect(sent.some((c) => c.cmd === "ack" && c.id === "s-defer")).toBe(true);
+      ready = true;
+      await controller.onBizhawkReady();
+      expect(bipc.sendSave).not.toHaveBeenCalled();
+      expect(bipc.sendSwap).toHaveBeenCalled();
+      expect(sent.some((c) => c.cmd === "ack" && c.id === "s-defer")).toBe(true);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
   });
 
   it("acks pause with mock ipc", async () => {

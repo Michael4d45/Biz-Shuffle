@@ -19,7 +19,11 @@ describe("SaveModeHandler handleRandomSwapForPlayer", () => {
   it("marks the displaced owner's instance pending before requesting saves", async () => {
     const pendingMarks: Array<{ instanceId: string; player: string }> = [];
     const bob = makePlayer("bob", "Banjo-Kazooie (USA).zip", BANJO_ID);
-    const test = makePlayer("test", "Legend of Zelda, The - Ocarina of Time (USA).zip", "legend-of-zelda--the");
+    const test = makePlayer(
+      "test",
+      "Legend of Zelda, The - Ocarina of Time (USA).zip",
+      "legend-of-zelda--the"
+    );
     const instances: GameSwapInstance[] = [
       { id: BANJO_ID, game: "Banjo-Kazooie (USA).zip", file_state: "ready" },
       {

@@ -42,7 +42,10 @@ describe("save mode peer save on instance takeover", () => {
     const romsDir = join(hostDir, "roms");
     mkdirSync(romsDir, { recursive: true });
     writeFileSync(join(romsDir, "Banjo-Kazooie (USA).zip"), Buffer.from("rom"));
-    writeFileSync(join(romsDir, "Legend of Zelda, The - Ocarina of Time (USA).zip"), Buffer.from("rom"));
+    writeFileSync(
+      join(romsDir, "Legend of Zelda, The - Ocarina of Time (USA).zip"),
+      Buffer.from("rom")
+    );
 
     await postJson(base, "/api/mode", { mode: "save" });
     await postJson(base, "/api/games", {
@@ -52,7 +55,11 @@ describe("save mode peer save on instance takeover", () => {
       ],
       game_instances: [
         { id: BANJO_ID, game: "Banjo-Kazooie (USA).zip", file_state: "ready" },
-        { id: ZELDA_ID, game: "Legend of Zelda, The - Ocarina of Time (USA).zip", file_state: "ready" },
+        {
+          id: ZELDA_ID,
+          game: "Legend of Zelda, The - Ocarina of Time (USA).zip",
+          file_state: "ready",
+        },
       ],
     });
     await postJson(base, "/api/add_player", { player: "bob" });
