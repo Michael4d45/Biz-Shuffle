@@ -2,7 +2,7 @@
 export const BIZHAWK_EXTRACT_ESTIMATE_MS = 15_000;
 
 /** VC++ silent install — progress bar estimate (download is much shorter). */
-export const VCREDIST_INSTALL_ESTIMATE_MS = 3 * 60_000;
+export const VCREDIST_INSTALL_ESTIMATE_MS = 5 * 60_000;
 
 /** Max overall progress (0–100) while downloading BizHawk; remainder is extract. */
 export const BIZHAWK_DOWNLOAD_PROGRESS_CAP = 85;
