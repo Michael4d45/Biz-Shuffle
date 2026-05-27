@@ -78,12 +78,12 @@ export type ShellRPCSchema = {
         params: Record<string, never>;
         response: DependenciesState;
       };
+      /** Round-trip boot handshake — webview must await before other RPC calls. */
+      shellReady: { params: Record<string, never>; response: { ok: true } };
     };
     messages: {
       /** Webview → bun diagnostic lines (smoke tests, dev logging). */
       diag: { line: string };
-      /** Webview → bun: shell finished loading; run dependency checks. */
-      shellReady: Record<string, never>;
     };
   };
   webview: {

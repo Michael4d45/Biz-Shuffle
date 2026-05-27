@@ -5,6 +5,7 @@ import type {
   ShellRPCSchema,
   ShellSettings,
 } from "../../shared/rpc.js";
+import { formatShellError } from "./shell-status.js";
 
 const defaultDepsState: DependenciesState = {
   checking: true,
@@ -30,8 +31,7 @@ const rpc = Electroview.defineRPC<ShellRPCSchema>({
     requests: {},
     messages: {
       status: ({ msg }) => {
-        const el = document.getElementById("status");
-        if (el) el.textContent = msg;
+        setStatus(msg);
       },
       updateState: (state) => {
         mergeUpdateState(state);
@@ -85,6 +85,34 @@ function setStatus(msg: string): void {
   statusLine = msg;
   const el = document.getElementById("status");
   if (el) el.textContent = msg;
+}
+
+function setUserFacingError(err: unknown, fallback: string, logLabel?: string): void {
+  if (logLabel) slog(`${logLabel}: ${err}`);
+  setStatus(formatShellError(err, fallback));
+}
+
+/** Block until webview↔bun RPC round-trip works (Electrobun transport may lag behind one-way pushes). */
+async function waitForShellReady(deadlineMs = 15_000): Promise<void> {
+  const deadline = Date.now() + deadlineMs;
+  let attempt = 0;
+  while (Date.now() < deadline) {
+    attempt++;
+    try {
+      await Promise.race([
+        rpc.request.shellReady({}),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error("shellReady fast timeout")), 500);
+        }),
+      ]);
+      slog(`shellReady ack (attempt ${attempt})`);
+      return;
+    } catch (e) {
+      slog(`shellReady attempt ${attempt}: ${e}`);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+  throw new Error("shell backend not ready");
 }
 
 /** Read live input values before replacing the DOM (module vars lag behind typing). */
@@ -336,7 +364,11 @@ function wireDepsPanel(): void {
         depsState = await rpc.request.installAllDependencies({});
         syncDepsUi();
       } catch (e) {
-        setStatus(String(e));
+        setUserFacingError(
+          e,
+          "Could not install dependencies — try again.",
+          "installAllDependencies"
+        );
       }
     })();
   });
@@ -349,7 +381,7 @@ function wireDepsPanel(): void {
           depsState = await rpc.request.installDependency({ id });
           syncDepsUi();
         } catch (e) {
-          setStatus(String(e));
+          setUserFacingError(e, "Could not install dependency — try again.", "installDependency");
         }
       })();
     });
@@ -363,7 +395,7 @@ function wireFooterButtons(): void {
       try {
         await rpc.request.installUpdate({});
       } catch (e) {
-        setStatus(String(e));
+        setUserFacingError(e, "Could not install update — try again.", "installUpdate");
       }
     })();
   });
@@ -645,7 +677,7 @@ async function onHost(): Promise<void> {
     await persistShellSettings();
     setStatus(`Admin opened at ${result.url} (listening on ${result.bindHost}:${result.hostPort})`);
   } catch (e) {
-    setStatus(String(e));
+    setUserFacingError(e, "Could not start host — try again.", "host");
   } finally {
     busy = false;
     render();
@@ -672,7 +704,7 @@ async function onJoin(): Promise<void> {
     await rpc.request.join({ serverUrl, playerName });
     setStatus(`Joined ${serverUrl} as ${playerName}`);
   } catch (e) {
-    setStatus(String(e));
+    setUserFacingError(e, "Could not join — check the server URL and try again.", "join");
   } finally {
     busy = false;
     render();
@@ -686,14 +718,17 @@ slog("initial render complete");
 
 void (async () => {
   try {
-    rpc.send.shellReady({});
-  } catch {
-    /* bun may not be ready yet */
+    await waitForShellReady();
+  } catch (e) {
+    slog(`shell boot failed: ${e}`);
+    setStatus("Could not connect to the app backend — try restarting BizShuffle.");
+    return;
   }
+
   await loadAppInfo();
   await loadShellSettingsFromDisk();
   await loadDependencies();
   render();
   await refreshDiscovery();
+  setInterval(() => void refreshDiscovery(), 5000);
 })();
-setInterval(() => void refreshDiscovery(), 5000);

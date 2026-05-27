@@ -464,15 +464,16 @@ function defineShellRpc() {
           return installDependency(dataDir(), id, depProgress);
         },
         installAllDependencies: async () => installAllDependencies(dataDir(), depProgress),
+        shellReady: async () => {
+          refreshDependencies(dataDir());
+          notifyAppUpdateState();
+          return { ok: true as const };
+        },
       },
       messages: {
         diag: (payload: unknown) => {
           const { line } = payload as ShellRPCSchema["bun"]["messages"]["diag"];
           desktopLog("bizshuffle-shell", line);
-        },
-        shellReady: () => {
-          refreshDependencies(dataDir());
-          notifyAppUpdateState();
         },
       } as NonNullable<
         Parameters<typeof defineElectrobunRPC<ShellRPCSchema>>[1]["handlers"]
