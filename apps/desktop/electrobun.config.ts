@@ -4,7 +4,7 @@ export default {
   app: {
     name: "BizShuffle",
     identifier: "dev.bizshuffle.desktop",
-    version: "0.0.18",
+    version: "0.0.20",
     description: "BizShuffle desktop — Host, Join, and embedded admin",
   },
   scripts: {
