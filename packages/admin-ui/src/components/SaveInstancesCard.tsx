@@ -23,7 +23,13 @@ type Props = {
   refreshState: () => Promise<ServerState | null>;
 };
 
-export function SaveInstancesCard({ state, expanded = false, trigger, pushLog, refreshState }: Props) {
+export function SaveInstancesCard({
+  state,
+  expanded = false,
+  trigger,
+  pushLog,
+  refreshState,
+}: Props) {
   const instances = state?.game_instances ?? [];
   const mainFiles = (state?.main_games ?? []).map((g) => g.file);
   const playersByInstance = instancePlayerMap(state);
@@ -80,12 +86,7 @@ export function SaveInstancesCard({ state, expanded = false, trigger, pushLog, r
 
   return (
     <div className="space-y-3">
-      <div
-        className={cn(
-          "space-y-2",
-          !expanded && "max-h-72 overflow-y-auto scrollbar-thin pr-1"
-        )}
-      >
+      <div className={cn("space-y-2", !expanded && "max-h-72 overflow-y-auto scrollbar-thin pr-1")}>
         {instances.length === 0 ? (
           <EmptyState>No save instances. Add one below.</EmptyState>
         ) : (
