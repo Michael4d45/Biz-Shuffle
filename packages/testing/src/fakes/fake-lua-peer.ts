@@ -1,7 +1,7 @@
-import { createServer, type Server, type Socket } from "node:net";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import type { Socket } from "bun";
 import { join } from "node:path";
 import { buildMinimalBizHawkSavestate } from "@bizshuffle-bun/savestate";
+import { ensureDirSync, readText, writeBytesAtomic } from "@bizshuffle-bun/client-host";
 
 const MINIMAL_SAVE_BYTES = Buffer.from(buildMinimalBizHawkSavestate());
 
@@ -20,7 +20,8 @@ export interface FakeLuaPeerOptions {
  * and speaks `HELLO` / `CMD|id|COMMAND|...` / `ACK|id`.
  */
 export class FakeLuaPeer {
-  private server: Server | null = null;
+  // Bun.listen returns a TCP listener; avoid pulling in generic Server<> from bun types.
+  private server: { stop: (closeActive?: boolean) => void; port?: number } | null = null;
   private socket: Socket | null = null;
   private buffer = "";
   private readonly commands: string[] = [];
@@ -39,48 +40,54 @@ export class FakeLuaPeer {
     return this.commands;
   }
 
-  static portFromFile(portFile: string): number {
-    return Number(readFileSync(portFile, "utf8").trim());
+  static async portFromFile(portFile: string): Promise<number> {
+    return Number((await readText(portFile)).trim());
   }
 
   /** Start a TCP listener like server.lua and return the peer + bound port. */
   static async listen(opts: FakeLuaPeerOptions): Promise<FakeLuaPeer> {
-    return new Promise((resolve, reject) => {
-      const server = createServer();
-      let boundPort = opts.port ?? 0;
+    const host = opts.host ?? "127.0.0.1";
+    let boundPort = opts.port ?? 0;
+    let peer: FakeLuaPeer | null = null;
 
-      server.on("error", reject);
-      server.listen(boundPort, opts.host ?? "127.0.0.1", () => {
-        const addr = server.address();
-        if (typeof addr === "object" && addr) boundPort = addr.port;
-        const peer = new FakeLuaPeer(opts, boundPort);
-        peer.server = server;
-        server.on("connection", (socket) => peer.attach(socket));
-        resolve(peer);
-      });
+    const server = Bun.listen({
+      hostname: host,
+      port: boundPort,
+      socket: {
+        open: (socket) => {
+          peer?.attach(socket);
+        },
+        data: (socket, data) => {
+          peer?.onData(socket, String(data));
+        },
+        close: (socket) => {
+          if (peer?.socket === socket) peer.socket = null;
+        },
+      },
     });
+
+    boundPort = server.port ?? boundPort;
+    peer = new FakeLuaPeer(opts, boundPort);
+    peer.server = server;
+    return peer;
   }
 
   stop(): void {
-    this.socket?.destroy();
+    this.socket?.end();
     this.socket = null;
-    this.server?.close();
+    this.server?.stop(true);
     this.server = null;
   }
 
   private attach(socket: Socket): void {
-    this.socket?.destroy();
+    this.socket?.end();
     this.socket = socket;
     this.buffer = "";
-    socket.setEncoding("utf8");
     socket.write("HELLO\n");
-    socket.on("data", (chunk) => this.onData(String(chunk)));
-    socket.once("close", () => {
-      if (this.socket === socket) this.socket = null;
-    });
   }
 
-  private onData(chunk: string): void {
+  private onData(socket: Socket, chunk: string): void {
+    if (this.socket !== socket) return;
     this.buffer += chunk;
     let idx: number;
     while ((idx = this.buffer.indexOf("\n")) >= 0) {
@@ -103,8 +110,8 @@ export class FakeLuaPeer {
 
     if (cmd === "SAVE") {
       const dir = join(this.opts.savesDir, "saves");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, `${this.instanceId}.state`), MINIMAL_SAVE_BYTES);
+      ensureDirSync(dir);
+      await writeBytesAtomic(join(dir, `${this.instanceId}.state`), MINIMAL_SAVE_BYTES);
     }
 
     this.socket?.write(`ACK|${id}\n`);
@@ -114,12 +121,8 @@ export class FakeLuaPeer {
 export async function waitForFile(path: string, timeoutMs = 5000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    try {
-      readFileSync(path);
-      return;
-    } catch {
-      await new Promise((r) => setTimeout(r, 25));
-    }
+    if (await Bun.file(path).exists()) return;
+    await Bun.sleep(25);
   }
   throw new Error(`file not found: ${path}`);
 }

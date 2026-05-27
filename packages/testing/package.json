@@ -14,13 +14,12 @@
     "@bizshuffle-bun/savestate": "workspace:*",
     "@bizshuffle-bun/client-host": "workspace:*",
     "@bizshuffle-bun/domain": "workspace:*",
-    "@bizshuffle-bun/ports": "workspace:*",
     "@bizshuffle-bun/protocol": "workspace:*",
     "@bizshuffle-bun/server-host": "workspace:*",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "1.3.14",
     "@types/ws": "^8.5.13",
     "typescript": "^6.0.3"
   }

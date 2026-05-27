@@ -81,11 +81,12 @@ export class SwapScheduler {
   }
 
   private sleepOrWake(ms: number): Promise<boolean> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     return new Promise((resolve) => {
-      const timer = setTimeout(() => resolve(true), ms);
+      timer = setTimeout(() => resolve(true), ms);
       const prev = this.wake;
       this.wake = () => {
-        clearTimeout(timer);
+        if (timer !== undefined) clearTimeout(timer);
         prev?.();
         resolve(false);
       };

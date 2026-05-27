@@ -7,19 +7,17 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@bizshuffle-bun/protocol": "workspace:*",
     "@bizshuffle-bun/savestate": "workspace:*",
-    "effect": "^3.12.5",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@bizshuffle-bun/server-host": "workspace:*",
-    "@types/bun": "latest",
+    "@types/bun": "1.3.14",
     "@types/ws": "^8.5.13",
     "typescript": "^6.0.3"
   }

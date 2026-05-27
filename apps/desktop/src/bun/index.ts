@@ -141,7 +141,9 @@ function nudgeShellWebviewPaint(): void {
 
 function runShellFooterDiagnostics(tag: string): void {
   try {
-    shellWindow?.webview.executeJavascript(`window.__bizshuffleFooterDiag?.(${JSON.stringify(tag)});`);
+    shellWindow?.webview.executeJavascript(
+      `window.__bizshuffleFooterDiag?.(${JSON.stringify(tag)});`
+    );
   } catch {
     /* webview not ready */
   }

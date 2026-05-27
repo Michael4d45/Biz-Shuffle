@@ -1,7 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { Effect } from "effect";
-import type { ClientConfig as RuntimeClientConfig } from "@bizshuffle-bun/protocol";
 import { BizhawkIpc, reserveLuaPort, writeLuaPortFile } from "./bizhawk-ipc.js";
 import { ClientApi } from "./api.js";
 import { Controller } from "./controller.js";
@@ -41,26 +39,6 @@ export class ClientRuntime {
 
   get isConnected(): boolean {
     return this.connected;
-  }
-
-  connectEffect(config: RuntimeClientConfig): Effect.Effect<void, Error> {
-    return Effect.tryPromise({
-      try: () =>
-        this.start({
-          dataDir: config.dataDir,
-          serverUrl: config.serverUrl,
-          playerName: config.playerName,
-        }),
-      catch: (e) => (e instanceof Error ? e : new Error(String(e))),
-    });
-  }
-
-  disconnectEffect(): Effect.Effect<void> {
-    return Effect.sync(() => this.stop());
-  }
-
-  connectedEffect(): Effect.Effect<boolean> {
-    return Effect.sync(() => this.connected);
   }
 
   async start(overrides?: Partial<ClientRuntimeOptions>): Promise<void> {
@@ -174,10 +152,6 @@ export class ClientRuntime {
     this.discovery = null;
     this.connected = false;
   }
-}
-
-export function createClientRuntime(options: ClientRuntimeOptions): ClientRuntime {
-  return new ClientRuntime(options);
 }
 
 export function loadClientConfig(dataDir: string): ClientConfigMap {

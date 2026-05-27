@@ -1,121 +1,137 @@
 import { SWAP_WAIT_MS, type Command, type Player } from "@bizshuffle-bun/protocol";
-import type { WebSocket } from "ws";
-import { WebSocketServer } from "ws";
+import type { ServerWebSocket } from "bun";
 import type { BizShuffleServer } from "./server.js";
 
 export const ERR_TIMEOUT = new Error("timeout waiting for result");
 
 interface WsClient {
-  conn: WebSocket;
+  ws: ServerWebSocket<undefined>;
   sendQueue: Command[];
   closed: boolean;
 }
 
 export class WsHub {
-  private readonly wss: WebSocketServer;
-  private readonly clients = new Map<WebSocket, WsClient>();
+  private readonly clients = new Map<ServerWebSocket<undefined>, WsClient>();
   private readonly playerClients = new Map<string, WsClient>();
   private readonly adminClients = new Map<string, WsClient>();
   private readonly pending = new Map<
     string,
     { resolve: (v: string) => void; reject: (e: Error) => void }
   >();
+  private readonly flushTimers = new Map<
+    ServerWebSocket<undefined>,
+    ReturnType<typeof setInterval>
+  >();
+  private readonly pingTimers = new Map<
+    ServerWebSocket<undefined>,
+    ReturnType<typeof setInterval>
+  >();
 
-  constructor(
-    private readonly server: BizShuffleServer,
-    attach: { server: import("node:http").Server; path?: string }
-  ) {
-    this.wss = new WebSocketServer({ server: attach.server, path: attach.path ?? "/ws" });
-    this.wss.on("connection", (conn) => this.onConnection(conn));
-  }
+  constructor(private readonly server: BizShuffleServer) {}
 
   close(): void {
     for (const [, client] of this.clients) {
-      client.conn.close();
+      client.ws.close();
     }
-    this.wss.close();
+    for (const timer of this.flushTimers.values()) clearInterval(timer);
+    for (const timer of this.pingTimers.values()) clearInterval(timer);
+    this.flushTimers.clear();
+    this.pingTimers.clear();
+    this.clients.clear();
+    this.playerClients.clear();
+    this.adminClients.clear();
   }
 
   get pendingCommandCount(): number {
     return this.pending.size;
   }
 
-  private onConnection(conn: WebSocket): void {
-    const client: WsClient = { conn, sendQueue: [], closed: false };
-    this.clients.set(conn, client);
-
-    conn.on("pong", (data) => {
-      const payload = data.toString("utf8");
-      if (!payload) return;
-      const ts = Number.parseInt(payload, 10);
-      if (Number.isNaN(ts)) return;
-      const sentMs = Math.floor(ts / 1_000_000);
-      const rtt = Date.now() - sentMs;
-      const name = this.findPlayerName(client);
-      if (name) {
-        this.server.updateStateAndPersist((st) => {
-          const pl = st.players[name];
-          if (pl) {
-            pl.ping_ms = rtt;
-            st.players[name] = pl;
-          }
-        });
-      }
-    });
+  onOpen(ws: ServerWebSocket<undefined>): void {
+    const client: WsClient = { ws, sendQueue: [], closed: false };
+    this.clients.set(ws, client);
 
     const pingInterval = setInterval(() => {
-      if (conn.readyState !== conn.OPEN) return;
-      const payload = `${Date.now() * 1_000_000}`;
-      conn.ping(payload);
+      if (ws.readyState !== WebSocket.OPEN) return;
+      ws.ping(`${Date.now() * 1_000_000}`);
     }, 30_000);
+    this.pingTimers.set(ws, pingInterval);
 
     const flush = () => {
-      while (client.sendQueue.length > 0 && conn.readyState === conn.OPEN) {
+      while (client.sendQueue.length > 0 && ws.readyState === WebSocket.OPEN) {
         const cmd = client.sendQueue.shift()!;
         if (cmd.cmd === "ping") {
           const payload =
             typeof cmd.payload === "string" && cmd.payload
               ? cmd.payload
               : `${Date.now() * 1_000_000}`;
-          conn.ping(payload);
+          ws.ping(payload);
         } else {
-          conn.send(JSON.stringify(cmd));
+          ws.send(JSON.stringify(cmd));
         }
       }
     };
+    this.flushTimers.set(ws, setInterval(flush, 10));
+  }
 
-    const flushTimer = setInterval(flush, 10);
+  onPong(ws: ServerWebSocket<undefined>, data: string | Buffer): void {
+    const client = this.clients.get(ws);
+    if (!client) return;
+    const payload = data.toString();
+    if (!payload) return;
+    const ts = Number.parseInt(payload, 10);
+    if (Number.isNaN(ts)) return;
+    const sentMs = Math.floor(ts / 1_000_000);
+    const rtt = Date.now() - sentMs;
+    const name = this.findPlayerName(client);
+    if (name) {
+      this.server.updateStateAndPersist((st) => {
+        const pl = st.players[name];
+        if (pl) {
+          pl.ping_ms = rtt;
+          st.players[name] = pl;
+        }
+      });
+    }
+  }
 
-    conn.on("message", (raw) => {
-      let cmd: Command;
-      try {
-        cmd = JSON.parse(raw.toString()) as Command;
-      } catch {
-        return;
-      }
-      void this.handleMessage(client, cmd);
-    });
+  onMessage(ws: ServerWebSocket<undefined>, raw: string | Buffer): void {
+    const client = this.clients.get(ws);
+    if (!client) return;
+    let cmd: Command;
+    try {
+      cmd = JSON.parse(raw.toString()) as Command;
+    } catch {
+      return;
+    }
+    void this.handleMessage(client, cmd);
+  }
 
-    conn.on("close", () => {
-      clearInterval(pingInterval);
-      clearInterval(flushTimer);
-      client.closed = true;
-      const playerName = this.findPlayerName(client);
-      if (playerName) {
-        this.playerClients.delete(playerName);
-        this.server.updateStateAndPersist((st) => {
-          const pl = st.players[playerName];
-          if (pl) {
-            pl.connected = false;
-            st.players[playerName] = pl;
-          }
-        });
-      } else {
-        const adminName = this.findAdminName(client);
-        if (adminName) this.adminClients.delete(adminName);
-      }
-      this.clients.delete(conn);
-    });
+  onClose(ws: ServerWebSocket<undefined>): void {
+    const flushTimer = this.flushTimers.get(ws);
+    if (flushTimer) clearInterval(flushTimer);
+    this.flushTimers.delete(ws);
+    const pingTimer = this.pingTimers.get(ws);
+    if (pingTimer) clearInterval(pingTimer);
+    this.pingTimers.delete(ws);
+
+    const client = this.clients.get(ws);
+    if (!client) return;
+    client.closed = true;
+    const playerName = this.findPlayerName(client);
+    if (playerName) {
+      this.playerClients.delete(playerName);
+      this.server.updateStateAndPersist((st) => {
+        const pl = st.players[playerName];
+        if (pl) {
+          pl.connected = false;
+          st.players[playerName] = pl;
+        }
+      });
+    } else {
+      const adminName = this.findAdminName(client);
+      if (adminName) this.adminClients.delete(adminName);
+    }
+    this.clients.delete(ws);
   }
 
   private findPlayerName(client: WsClient): string {
@@ -245,15 +261,15 @@ export class WsHub {
   enqueue(client: WsClient, cmd: Command): void {
     if (client.closed) return;
     client.sendQueue.push(cmd);
-    if (client.conn.readyState === client.conn.OPEN) {
+    if (client.ws.readyState === WebSocket.OPEN) {
       if (cmd.cmd === "ping") {
         const payload =
           typeof cmd.payload === "string" && cmd.payload
             ? cmd.payload
             : `${Date.now() * 1_000_000}`;
-        client.conn.ping(payload);
+        client.ws.ping(payload);
       } else {
-        client.conn.send(JSON.stringify(cmd));
+        client.ws.send(JSON.stringify(cmd));
       }
     }
   }

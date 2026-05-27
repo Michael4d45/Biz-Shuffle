@@ -1,2 +1,6 @@
 [install]
 peer = false
+
+[test]
+timeout = 120000
+preload = ["./packages/testing/src/bun-test-preload.ts"]

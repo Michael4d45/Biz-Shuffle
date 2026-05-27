@@ -1,5 +1,4 @@
 import { hostname } from "node:os";
-import type { Server as HttpServer } from "node:http";
 import {
   type Command,
   type FileState,
@@ -15,7 +14,7 @@ import { SwapScheduler } from "./scheduler.js";
 import { ServerSession } from "./session.js";
 import { WsHub } from "./ws.js";
 import { createDiscoveryBroadcaster, type DiscoveryBroadcaster } from "./discovery.js";
-import { createHttpApp } from "./http.js";
+import { startBizShuffleServe, type BizShuffleServe } from "./serve.js";
 import { resolveAdminStaticDir } from "./static-path.js";
 import { syncCatalogFromRoms } from "./rom-catalog.js";
 export class BizShuffleServer {
@@ -23,7 +22,7 @@ export class BizShuffleServer {
   readonly persistence: Persistence;
   private readonly scheduler: SwapScheduler;
   private wsHub: WsHub | null = null;
-  private httpServer: HttpServer | null = null;
+  private serve: BizShuffleServe | null = null;
   private discovery: DiscoveryBroadcaster | null = null;
   pendingInstanceCount = 0;
 
@@ -68,33 +67,29 @@ export class BizShuffleServer {
   }
 
   async start(): Promise<void> {
-    this.persistence.load();
+    await this.persistence.load();
     await syncCatalogFromRoms(this);
-    const app = createHttpApp(this);
-    await new Promise<void>((resolve, reject) => {
-      const server = app.listen(this.listenPort, this.listenHost, () => {
-        const addr = server.address();
-        if (addr && typeof addr === "object") {
-          this.listenPort = addr.port;
-          this.listenHost = addr.address === "::" ? "127.0.0.1" : addr.address;
-        }
-        this.httpServer = server;
-        this.wsHub = new WsHub(this, { server });
-        this.updateStateAndPersist((st) => {
-          st.host = this.listenHost;
-          st.port = this.listenPort;
-        });
-        this.discovery = createDiscoveryBroadcaster(
-          this.listenHost,
-          this.listenPort,
-          this.getServerName()
-        );
-        this.discovery.start();
-        this.scheduler.start();
-        resolve();
-      });
-      server.on("error", reject);
+    const serve = startBizShuffleServe(this, {
+      host: this.listenHost,
+      port: this.listenPort,
     });
+    this.serve = serve;
+    this.wsHub = serve.hub;
+    this.listenPort = serve.bun.port ?? this.listenPort;
+    const hostname = serve.bun.hostname ?? this.listenHost;
+    this.listenHost =
+      hostname === "::" || hostname === "0.0.0.0" || !hostname ? "127.0.0.1" : hostname;
+    this.updateStateAndPersist((st) => {
+      st.host = this.listenHost;
+      st.port = this.listenPort;
+    });
+    this.discovery = createDiscoveryBroadcaster(
+      this.listenHost,
+      this.listenPort,
+      this.getServerName()
+    );
+    this.discovery.start();
+    this.scheduler.start();
   }
 
   async stop(): Promise<void> {
@@ -102,14 +97,8 @@ export class BizShuffleServer {
     this.discovery?.stop();
     this.wsHub?.close();
     await this.persistence.drain();
-    const http = this.httpServer;
-    if (http && "closeAllConnections" in http && typeof http.closeAllConnections === "function") {
-      http.closeAllConnections();
-    }
-    await new Promise<void>((resolve) => {
-      http?.close(() => resolve());
-    });
-    this.httpServer = null;
+    this.serve?.stop();
+    this.serve = null;
     this.wsHub = null;
   }
 

@@ -15,7 +15,7 @@ describe("emulator contracts", () => {
     expect(IPC_TIMEOUT_MS).toBe(10_000);
   });
 
-  it("EmulatorService health states are defined in core", async () => {
+  it("EmulatorState values are defined in protocol", async () => {
     const t: import("@bizshuffle-bun/protocol").EmulatorState = "crashed";
     expect(t).toBe("crashed");
   });

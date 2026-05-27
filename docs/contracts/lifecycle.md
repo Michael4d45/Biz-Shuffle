@@ -2,17 +2,17 @@
 
 ## Shutdown order
 
-1. Stop ClientRuntime (desktop)
+1. Stop `ClientRuntime` (desktop)
 2. Flush pending saves / disconnect Lua
-3. EmulatorService.stop (tree-kill fallback)
-4. ServerRuntime.stop (close WS, discovery, flush state.json)
+3. `DesktopEmulatorService.stop` (tree-kill fallback)
+4. `BizShuffleServer.stop` (close WS, discovery, flush state.json)
 
 ## Host and Play
 
-1. ServerRuntime.start
+1. `BizShuffleServer.start`
 2. Open admin at http://127.0.0.1:{port}/
-3. ClientRuntime.connect loopback
-4. EmulatorService.launch
+3. `ClientRuntime.start` on loopback
+4. `DesktopEmulatorService.launch`
 
 ## Headless
 

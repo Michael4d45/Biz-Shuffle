@@ -12,12 +12,14 @@ Package: `@bizshuffle-bun/admin-ui` → built to `packages/server-host/priv/stat
 
 ## Stack
 
-| Piece              | Location                                                             |
-| ------------------ | -------------------------------------------------------------------- |
-| React 18 + Vite 8  | `packages/admin-ui/vite.config.ts`                                   |
-| **React Compiler** | `reactCompilerPreset({ target: "18" })` via `@rolldown/plugin-babel` |
-| Tailwind 4         | `@tailwindcss/vite`                                                  |
-| ESLint             | `eslint-plugin-react-compiler` on `packages/admin-ui/**/*`           |
+| Piece              | Location                                                              |
+| ------------------ | --------------------------------------------------------------------- |
+| React 18           | `packages/admin-ui/src/`                                              |
+| **Build**          | `scripts/build.ts` — `Bun.build` + `@tailwindcss/cli` → `priv/static` |
+| **Dev**            | `scripts/dev.ts` — rebuild on save, `Bun.serve` proxies `/api` `/ws`  |
+| **React Compiler** | `babel-plugin-react-compiler` via Babel in `build-shared.ts`          |
+| Tailwind 4         | `@tailwindcss/cli`                                                    |
+| ESLint             | `eslint-plugin-react-compiler` on `packages/admin-ui/**/*`            |
 
 ## React Compiler (important)
 
@@ -32,8 +34,8 @@ See rule: `.cursor/rules/admin-ui-react-compiler.mdc`.
 ## Dev
 
 ```bash
-bun run build:admin          # before server/desktop serves UI
-bun run dev:admin            # Vite HMR, proxies /api /ws to :8080
+bun run build:admin          # Bun bundler + Tailwind CLI → server-host/priv/static
+bun run dev:admin            # Bun dev server :5173, proxies /api /ws to :8080
 bun run dev:server -- --data-dir ./data --port 8080
 ```
 

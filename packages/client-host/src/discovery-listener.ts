@@ -56,7 +56,6 @@ export class DiscoveryListener {
     this.discovered.clear();
   }
 
-  /** Drop stale entries from the cache (not only hide them in results). */
   pruneExpired(now = Date.now()): void {
     const maxAge = this.config.listen_timeout_sec * 1000;
     for (const [id, s] of this.discovered) {
@@ -73,7 +72,6 @@ export class DiscoveryListener {
     }
   }
 
-  /** Remove cached servers on the same port as a local host URL (127.0.0.1 / localhost / ::1). */
   removeLocalPort(port: number): void {
     const localHosts = new Set(["127.0.0.1", "localhost", "::1"]);
     for (const [id, s] of this.discovered) {

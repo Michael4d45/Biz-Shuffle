@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { statSync } from "node:fs";
 import { join } from "node:path";
+import { ensureDirSync, pathExists, readText, writeTextAtomic } from "./bun-io.js";
 import {
   PERSIST_DEBOUNCE_MS,
   type FileState,
@@ -36,10 +37,10 @@ export class Persistence {
     this.statePath = join(opts.dataDir, "state.json");
     this.pluginsDir = join(opts.dataDir, "plugins");
     this.savesDir = join(opts.dataDir, "saves");
-    mkdirSync(opts.dataDir, { recursive: true });
-    mkdirSync(join(opts.dataDir, "roms"), { recursive: true });
-    mkdirSync(this.savesDir, { recursive: true });
-    mkdirSync(this.pluginsDir, { recursive: true });
+    ensureDirSync(opts.dataDir);
+    ensureDirSync(join(opts.dataDir, "roms"));
+    ensureDirSync(this.savesDir);
+    ensureDirSync(this.pluginsDir);
   }
 
   get pluginsDirectory(): string {
@@ -50,13 +51,13 @@ export class Persistence {
     return this.savesDir;
   }
 
-  load(): void {
+  async load(): Promise<void> {
     let tmp: MutableServerState;
-    if (!existsSync(this.statePath)) {
+    if (!pathExists(this.statePath)) {
       tmp = structuredClone(this.opts.session.snapshot) as MutableServerState;
     } else {
       try {
-        const raw = JSON.parse(readFileSync(this.statePath, "utf8")) as ServerState;
+        const raw = JSON.parse(await readText(this.statePath)) as ServerState;
         tmp = { ...freshServerState(), ...raw } as MutableServerState;
       } catch {
         console.error("failed to load state from disk");
@@ -73,7 +74,7 @@ export class Persistence {
 
     for (const inst of tmp.game_instances) {
       const savePath = join(this.savesDir, `${inst.id}.state`);
-      inst.file_state = existsSync(savePath) ? ("ready" as FileState) : ("none" as FileState);
+      inst.file_state = pathExists(savePath) ? ("ready" as FileState) : ("none" as FileState);
       inst.pending_player = "";
     }
 
@@ -122,18 +123,15 @@ export class Persistence {
       await this.savePluginConfig(plugin);
     }
     const toWrite = { ...st, plugins: undefined };
-    mkdirSync(this.dataDir, { recursive: true });
-    const tmp = `${this.statePath}.tmp`;
-    writeFileSync(tmp, JSON.stringify(toWrite, null, 2) + "\n", "utf8");
-    renameSync(tmp, this.statePath);
+    await writeTextAtomic(this.statePath, JSON.stringify(toWrite, null, 2) + "\n");
     return st.updated_at;
   }
 
   private async savePluginConfig(plugin: Plugin): Promise<void> {
     const pluginDir = join(this.pluginsDir, plugin.name);
-    mkdirSync(pluginDir, { recursive: true });
+    ensureDirSync(pluginDir);
     const settingsKV = join(pluginDir, "settings.kv");
-    const settings = existsSync(settingsKV) ? loadSettingsKv(settingsKV) : { status: "disabled" };
+    const settings = pathExists(settingsKV) ? loadSettingsKv(settingsKV) : { status: "disabled" };
     settings.status = plugin.status;
     saveSettingsKv(settings, settingsKV);
     const full = structuredClone(
@@ -148,7 +146,7 @@ export class Persistence {
   refreshInstanceFileStates(instances: GameSwapInstance[]): GameSwapInstance[] {
     return instances.map((inst) => {
       const savePath = join(this.savesDir, `${inst.id}.state`);
-      const file_state: FileState = existsSync(savePath) ? "ready" : "none";
+      const file_state: FileState = pathExists(savePath) ? "ready" : "none";
       return { ...inst, file_state, pending_player: "" };
     });
   }

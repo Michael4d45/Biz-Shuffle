@@ -12,8 +12,8 @@ const FORBIDDEN = [
   /from\s+['"][^'"]*packages\/server/,
   /from\s+['"][^'"]*\/server\/src\//,
   /BizShuffleServer/,
-  /createServerRuntime/,
-  /createHttpApp/,
+  /startBizShuffleServe/,
+  /handleHttpRequest/,
   /ServerSession/,
 ];
 

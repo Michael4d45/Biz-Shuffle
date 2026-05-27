@@ -1,7 +1,6 @@
-import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import express, { type Express, type Response } from "express";
-import multer from "multer";
+import { ensureDirSync, pathExists, writeBytesAtomic } from "./bun-io.js";
 import type { MutablePlugin } from "@bizshuffle-bun/protocol";
 import { verifyBizHawkSavestate } from "@bizshuffle-bun/savestate";
 import type { BizShuffleServer } from "./server.js";
@@ -15,67 +14,83 @@ import {
 import { listRoms, syncCatalogFromRoms } from "./rom-catalog.js";
 import { openPathInFileManager } from "./open-path.js";
 import { resolveShareUrls } from "./share-urls.js";
+import {
+  HttpError,
+  json,
+  ok,
+  readJsonBody,
+  readUrlencodedBody,
+  serveFile,
+  serveUnderRoot,
+  text,
+} from "./http-utils.js";
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 32 * 1024 * 1024 } });
+const UPLOAD_LIMIT = 32 * 1024 * 1024;
 
-function ok(res: Response, body: unknown = "ok"): void {
-  if (typeof body === "string") {
-    res.type("text/plain").send(body);
-  } else {
-    res.json(body);
+export async function handleHttpRequest(server: BizShuffleServer, req: Request): Promise<Response> {
+  try {
+    return await route(server, req);
+  } catch (err) {
+    if (err instanceof HttpError) return text(err.message, err.status);
+    console.error("http:", err);
+    return text(err instanceof Error ? err.message : String(err), 500);
   }
 }
 
-export function createHttpApp(server: BizShuffleServer): Express {
-  const app = express();
+async function route(server: BizShuffleServer, req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  const { pathname } = url;
+  const method = req.method.toUpperCase();
   const dataDir = server.dataDir;
   const staticDir = server.adminStaticDir;
 
-  app.use(express.json({ limit: "2mb" }));
+  if (method === "GET" && pathname === "/state.json") {
+    return json({ state: server.snapshotState() });
+  }
 
-  app.get("/state.json", (_req, res) => {
-    res.json({ state: server.snapshotState() });
-  });
-
-  app.get("/api/share_urls", async (_req, res) => {
+  if (method === "GET" && pathname === "/api/share_urls") {
     const st = server.snapshotState();
     const host = st.host ?? "127.0.0.1";
     const port = st.port ?? 8080;
     try {
       const urls = await resolveShareUrls(host, port);
-      res.json(urls);
+      return json(urls);
     } catch (err) {
-      res.status(500).send(err instanceof Error ? err.message : String(err));
+      return text(err instanceof Error ? err.message : String(err), 500);
     }
-  });
+  }
 
-  app.get("/", (_req, res) => {
-    res.sendFile(join(staticDir, "index.html"));
-  });
+  if (method === "GET" && pathname === "/") {
+    const index = serveFile(join(staticDir, "index.html"));
+    return index ?? text("not found", 404);
+  }
 
-  app.use("/assets", express.static(join(staticDir, "assets")));
+  if (method === "GET" && pathname.startsWith("/assets/")) {
+    const asset = serveUnderRoot(join(staticDir, "assets"), pathname.slice("/assets/".length));
+    return asset ?? text("not found", 404);
+  }
 
-  app.post("/api/start", (_req, res) => {
+  if (method === "POST" && pathname === "/api/start") {
     server.updateStateAndPersist((st) => {
       st.running = true;
     });
     server.broadcastToPlayers({ cmd: "start", id: `${Date.now()}` });
     server.notifyScheduler();
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.post("/api/pause", (_req, res) => {
+  if (method === "POST" && pathname === "/api/pause") {
     server.updateStateAndPersist((st) => {
       st.running = false;
     });
     server.broadcastToPlayers({ cmd: "pause", id: `${Date.now()}` });
     server.notifyScheduler();
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.post("/api/clear_saves", (_req, res) => {
+  if (method === "POST" && pathname === "/api/clear_saves") {
     const savesDir = join(dataDir, "saves");
-    if (existsSync(savesDir)) {
+    if (pathExists(savesDir)) {
       const trash = `${savesDir}.trash.${Date.now()}`;
       try {
         renameSync(savesDir, trash);
@@ -83,94 +98,86 @@ export function createHttpApp(server: BizShuffleServer): Express {
         /* ignore */
       }
     }
-    mkdirSync(savesDir, { recursive: true });
+    ensureDirSync(savesDir);
     server.broadcastToPlayers({ cmd: "clear_saves", id: `${Date.now()}` });
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.post("/api/toggle_swaps", (_req, res) => {
+  if (method === "POST" && pathname === "/api/toggle_swaps") {
     server.updateStateAndPersist((st) => {
       st.swap_enabled = !st.swap_enabled;
       if (!st.swap_enabled) st.next_swap_at = 0;
     });
     server.notifyScheduler();
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.post("/api/toggle_countdown", (_req, res) => {
+  if (method === "POST" && pathname === "/api/toggle_countdown") {
     server.updateStateAndPersist((st) => {
       st.countdown_enabled = !st.countdown_enabled;
     });
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.post("/api/toggle_prevent_same_game", (_req, res) => {
+  if (method === "POST" && pathname === "/api/toggle_prevent_same_game") {
     server.updateStateAndPersist((st) => {
       st.prevent_same_game_swap = !st.prevent_same_game_swap;
     });
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.post("/api/do_swap", async (_req, res) => {
+  if (method === "POST" && pathname === "/api/do_swap") {
     try {
       await server.performSwap();
-      ok(res);
+      return ok();
     } catch (err) {
       console.error("do_swap:", err);
-      res.status(500).send(String(err));
+      return text(String(err), 500);
     }
-  });
+  }
 
-  app.post("/api/random_swap", async (req, res) => {
-    const player = (req.body as { player?: string }).player ?? "";
-    if (!player) {
-      res.status(400).send("missing player");
-      return;
-    }
+  if (method === "POST" && pathname === "/api/random_swap") {
+    const body = await readJsonBody(req);
+    const player = (body.player as string | undefined) ?? "";
+    if (!player) return text("missing player", 400);
     try {
       await server.performRandomSwapForPlayer(player);
-      ok(res);
+      return ok();
     } catch (err) {
-      res.status(400).send(err instanceof Error ? err.message : String(err));
+      return text(err instanceof Error ? err.message : String(err), 400);
     }
-  });
+  }
 
-  app.get("/api/mode", (_req, res) => {
-    res.json({ mode: server.snapshotState().mode ?? "sync" });
-  });
+  if (method === "GET" && pathname === "/api/mode") {
+    return json({ mode: server.snapshotState().mode ?? "sync" });
+  }
 
-  app.post("/api/mode", (req, res) => {
-    const mode = (req.body as { mode?: string }).mode;
-    if (mode !== "sync" && mode !== "save") {
-      res.status(400).send("invalid mode");
-      return;
-    }
+  if (method === "POST" && pathname === "/api/mode") {
+    const body = await readJsonBody(req);
+    const mode = body.mode as string | undefined;
+    if (mode !== "sync" && mode !== "save") return text("invalid mode", 400);
     server.updateStateAndPersist((st) => {
       st.mode = mode;
     });
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.post("/api/mode/setup", async (_req, res) => {
+  if (method === "POST" && pathname === "/api/mode/setup") {
     try {
-      if (await syncCatalogFromRoms(server)) {
-        server.broadcastGamesUpdate();
-      }
-      ok(res);
+      if (await syncCatalogFromRoms(server)) server.broadcastGamesUpdate();
+      return ok();
     } catch (err) {
-      res
-        .status(400)
-        .send(`something went wrong ${err instanceof Error ? err.message : String(err)}`);
+      return text(`something went wrong ${err instanceof Error ? err.message : String(err)}`, 400);
     }
-  });
+  }
 
-  app.get("/api/games", (_req, res) => {
+  if (method === "GET" && pathname === "/api/games") {
     const { games, mainGames, instances } = server.session.snapshotGames();
-    res.json({ main_games: mainGames, game_instances: instances, games });
-  });
+    return json({ main_games: mainGames, game_instances: instances, games });
+  }
 
-  app.post("/api/games", (req, res) => {
-    const raw = req.body as Record<string, unknown>;
+  if (method === "POST" && pathname === "/api/games") {
+    const raw = await readJsonBody(req);
     server.updateStateAndPersist((st) => {
       if (Array.isArray(raw.games)) st.games = raw.games as string[];
       if (Array.isArray(raw.main_games)) st.main_games = raw.main_games as typeof st.main_games;
@@ -191,71 +198,59 @@ export function createHttpApp(server: BizShuffleServer): Express {
         games: st.games,
       },
     });
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.get("/api/interval", (_req, res) => {
+  if (method === "GET" && pathname === "/api/interval") {
     const st = server.snapshotState();
-    res.json({
+    return json({
       min_interval_secs: st.min_interval_secs ?? 5,
       max_interval_secs: st.max_interval_secs ?? 300,
     });
-  });
+  }
 
-  app.post("/api/interval", (req, res) => {
-    const body = req.body as { min_interval_secs?: number; max_interval_secs?: number };
+  if (method === "POST" && pathname === "/api/interval") {
+    const body = await readJsonBody(req);
     server.updateStateAndPersist((st) => {
-      if (body.min_interval_secs) st.min_interval_secs = body.min_interval_secs;
-      if (body.max_interval_secs) st.max_interval_secs = body.max_interval_secs;
+      if (typeof body.min_interval_secs === "number") st.min_interval_secs = body.min_interval_secs;
+      if (typeof body.max_interval_secs === "number") st.max_interval_secs = body.max_interval_secs;
     });
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.post("/api/swap_player", async (req, res) => {
-    const body = req.body as { player?: string; instance_id?: string; game?: string };
-    let gameFile = body.game ?? "";
-    if (!gameFile && body.instance_id) {
-      const inst = (server.snapshotState().game_instances ?? []).find(
-        (i) => i.id === body.instance_id
-      );
-      if (!inst) {
-        res.status(400).send("instance not found");
-        return;
-      }
+  if (method === "POST" && pathname === "/api/swap_player") {
+    const body = await readJsonBody(req);
+    let gameFile = (body.game as string | undefined) ?? "";
+    const instanceId = (body.instance_id as string | undefined) ?? "";
+    if (!gameFile && instanceId) {
+      const inst = (server.snapshotState().game_instances ?? []).find((i) => i.id === instanceId);
+      if (!inst) return text("instance not found", 400);
       gameFile = inst.game;
     }
-    if (!gameFile || !body.player) {
-      res.status(400).send("missing game or instance_id");
-      return;
-    }
+    const player = (body.player as string | undefined) ?? "";
+    if (!gameFile || !player) return text("missing game or instance_id", 400);
     try {
-      await server
-        .getGameModeHandler()
-        .handlePlayerSwap(body.player, gameFile, body.instance_id ?? "");
-      res.status(200).end();
+      await server.getGameModeHandler().handlePlayerSwap(player, gameFile, instanceId);
+      return new Response(null, { status: 200 });
     } catch (err) {
-      res.status(400).send(`handler: ${err instanceof Error ? err.message : String(err)}`);
+      return text(`handler: ${err instanceof Error ? err.message : String(err)}`, 400);
     }
-  });
+  }
 
-  app.post("/api/remove_player", (req, res) => {
-    const player = (req.body as { player?: string }).player ?? "";
-    if (!player) {
-      res.status(400).send("missing player");
-      return;
-    }
+  if (method === "POST" && pathname === "/api/remove_player") {
+    const body = await readJsonBody(req);
+    const player = (body.player as string | undefined) ?? "";
+    if (!player) return text("missing player", 400);
     server.updateStateAndPersist((st) => {
       delete st.players[player];
     });
-    res.json({ result: "ok" });
-  });
+    return json({ result: "ok" });
+  }
 
-  app.post("/api/add_player", (req, res) => {
-    const player = (req.body as { player?: string }).player ?? "";
-    if (!player) {
-      res.status(400).send("missing player");
-      return;
-    }
+  if (method === "POST" && pathname === "/api/add_player") {
+    const body = await readJsonBody(req);
+    const player = (body.player as string | undefined) ?? "";
+    if (!player) return text("missing player", 400);
     server.updateStateAndPersist((st) => {
       st.players[player] ??= {
         name: player,
@@ -264,11 +259,12 @@ export function createHttpApp(server: BizShuffleServer): Express {
         bizhawk_ready: false,
       };
     });
-    res.json({ result: "ok" });
-  });
+    return json({ result: "ok" });
+  }
 
-  app.post("/api/swap_all_to_game", (req, res) => {
-    const game = (req.body as { game?: string }).game ?? "";
+  if (method === "POST" && pathname === "/api/swap_all_to_game") {
+    const body = await readJsonBody(req);
+    const game = (body.game as string | undefined) ?? "";
     server.updateStateAndPersist((st) => {
       for (const [name, player] of Object.entries(st.players)) {
         player.game = game;
@@ -276,10 +272,10 @@ export function createHttpApp(server: BizShuffleServer): Express {
       }
     });
     server.sendSwapAll();
-    res.json({ result: "ok" });
-  });
+    return json({ result: "ok" });
+  }
 
-  app.post("/api/players/remove_all_completions", (_req, res) => {
+  if (method === "POST" && pathname === "/api/players/remove_all_completions") {
     server.updateStateAndPersist((st) => {
       for (const [name, player] of Object.entries(st.players)) {
         player.completed_games = [];
@@ -287,77 +283,79 @@ export function createHttpApp(server: BizShuffleServer): Express {
         st.players[name] = player;
       }
     });
-    res.json({ result: "ok" });
-  });
+    return json({ result: "ok" });
+  }
 
-  app.post("/api/players/:player/completed_games", (req, res) => {
-    const game = (req.body as { game?: string }).game ?? "";
-    if (!game) {
-      res.status(400).send("missing game");
-      return;
+  const playerCompletedGames = pathname.match(/^\/api\/players\/([^/]+)\/completed_games$/);
+  if (playerCompletedGames) {
+    const playerName = decodeURIComponent(playerCompletedGames[1]!);
+    if (method === "POST") {
+      const body = await readJsonBody(req);
+      const game = (body.game as string | undefined) ?? "";
+      if (!game) return text("missing game", 400);
+      server.updateStateAndPersist((st) => {
+        const p = st.players[playerName] ?? {
+          name: playerName,
+          has_files: false,
+          connected: false,
+          bizhawk_ready: false,
+        };
+        if (!(p.completed_games ?? []).includes(game)) {
+          p.completed_games = [...(p.completed_games ?? []), game];
+        }
+        st.players[playerName] = p;
+      });
+      return json({ result: "ok" });
     }
-    const playerName = req.params.player!;
-    server.updateStateAndPersist((st) => {
-      const p = st.players[playerName] ?? {
-        name: playerName,
-        has_files: false,
-        connected: false,
-        bizhawk_ready: false,
-      };
-      if (!(p.completed_games ?? []).includes(game)) {
-        p.completed_games = [...(p.completed_games ?? []), game];
-      }
-      st.players[playerName] = p;
-    });
-    res.json({ result: "ok" });
-  });
+    if (method === "DELETE") {
+      const game = url.searchParams.get("game") ?? "";
+      server.updateStateAndPersist((st) => {
+        const p = st.players[playerName];
+        if (p) {
+          p.completed_games = (p.completed_games ?? []).filter((g) => g !== game);
+          st.players[playerName] = p;
+        }
+      });
+      return json({ result: "ok" });
+    }
+  }
 
-  app.delete("/api/players/:player/completed_games", (req, res) => {
-    const game = req.query.game as string;
-    const playerName = req.params.player!;
-    server.updateStateAndPersist((st) => {
-      const p = st.players[playerName];
-      if (p) {
-        p.completed_games = (p.completed_games ?? []).filter((g) => g !== game);
+  const playerCompletedInstances = pathname.match(/^\/api\/players\/([^/]+)\/completed_instances$/);
+  if (playerCompletedInstances) {
+    const playerName = decodeURIComponent(playerCompletedInstances[1]!);
+    if (method === "POST") {
+      const body = await readJsonBody(req);
+      const instance = (body.instance as string | undefined) ?? "";
+      server.updateStateAndPersist((st) => {
+        const p = st.players[playerName] ?? {
+          name: playerName,
+          has_files: false,
+          connected: false,
+          bizhawk_ready: false,
+        };
+        if (!(p.completed_instances ?? []).includes(instance)) {
+          p.completed_instances = [...(p.completed_instances ?? []), instance];
+        }
         st.players[playerName] = p;
-      }
-    });
-    res.json({ result: "ok" });
-  });
+      });
+      return json({ result: "ok" });
+    }
+    if (method === "DELETE") {
+      const instance = url.searchParams.get("instance") ?? "";
+      server.updateStateAndPersist((st) => {
+        const p = st.players[playerName];
+        if (p) {
+          p.completed_instances = (p.completed_instances ?? []).filter((i) => i !== instance);
+          st.players[playerName] = p;
+        }
+      });
+      return json({ result: "ok" });
+    }
+  }
 
-  app.post("/api/players/:player/completed_instances", (req, res) => {
-    const instance = (req.body as { instance?: string }).instance ?? "";
-    const playerName = req.params.player!;
-    server.updateStateAndPersist((st) => {
-      const p = st.players[playerName] ?? {
-        name: playerName,
-        has_files: false,
-        connected: false,
-        bizhawk_ready: false,
-      };
-      if (!(p.completed_instances ?? []).includes(instance)) {
-        p.completed_instances = [...(p.completed_instances ?? []), instance];
-      }
-      st.players[playerName] = p;
-    });
-    res.json({ result: "ok" });
-  });
-
-  app.delete("/api/players/:player/completed_instances", (req, res) => {
-    const instance = req.query.instance as string;
-    const playerName = req.params.player!;
-    server.updateStateAndPersist((st) => {
-      const p = st.players[playerName];
-      if (p) {
-        p.completed_instances = (p.completed_instances ?? []).filter((i) => i !== instance);
-        st.players[playerName] = p;
-      }
-    });
-    res.json({ result: "ok" });
-  });
-
-  app.post("/api/games/:game/mark_completed_all", (req, res) => {
-    const game = req.params.game!;
+  const markGameCompleted = pathname.match(/^\/api\/games\/([^/]+)\/mark_completed_all$/);
+  if (markGameCompleted && method === "POST") {
+    const game = decodeURIComponent(markGameCompleted[1]!);
     server.updateStateAndPersist((st) => {
       for (const [name, player] of Object.entries(st.players)) {
         if (!(player.completed_games ?? []).includes(game)) {
@@ -366,11 +364,12 @@ export function createHttpApp(server: BizShuffleServer): Express {
         st.players[name] = player;
       }
     });
-    res.json({ result: "ok" });
-  });
+    return json({ result: "ok" });
+  }
 
-  app.post("/api/instances/:instance/mark_completed_all", (req, res) => {
-    const instance = req.params.instance!;
+  const markInstanceCompleted = pathname.match(/^\/api\/instances\/([^/]+)\/mark_completed_all$/);
+  if (markInstanceCompleted && method === "POST") {
+    const instance = decodeURIComponent(markInstanceCompleted[1]!);
     server.updateStateAndPersist((st) => {
       for (const [name, player] of Object.entries(st.players)) {
         if (!(player.completed_instances ?? []).includes(instance)) {
@@ -379,145 +378,125 @@ export function createHttpApp(server: BizShuffleServer): Express {
         st.players[name] = player;
       }
     });
-    res.json({ result: "ok" });
-  });
+    return json({ result: "ok" });
+  }
 
-  app.get("/api/plugins", (_req, res) => {
+  if (method === "GET" && pathname === "/api/plugins") {
     const pluginsDir = join(dataDir, "plugins");
     const plugins = { ...server.snapshotState().plugins, ...loadPluginsFromDisk(pluginsDir) };
-    res.json({ plugins });
-  });
+    return json({ plugins });
+  }
 
-  app.get("/api/plugins/:name", (req, res) => {
-    const plugin = loadPluginMetadata(join(dataDir, "plugins"), req.params.name!);
-    if (!plugin) {
-      res.status(404).send("plugin not found");
-      return;
+  const pluginByName = pathname.match(/^\/api\/plugins\/([^/]+)$/);
+  if (pluginByName) {
+    const name = decodeURIComponent(pluginByName[1]!);
+    if (method === "GET") {
+      const plugin = loadPluginMetadata(join(dataDir, "plugins"), name);
+      if (!plugin) return text("plugin not found", 404);
+      const statePlugin = server.snapshotState().plugins?.[name];
+      return json({ ...plugin, status: statePlugin?.status ?? plugin.status });
     }
-    const statePlugin = server.snapshotState().plugins?.[req.params.name!];
-    res.json({
-      ...plugin,
-      status: statePlugin?.status ?? plugin.status,
-    });
-  });
-
-  app.delete("/api/plugins/:name", (req, res) => {
-    const pluginDir = join(dataDir, "plugins", req.params.name!);
-    rmSync(pluginDir, { recursive: true, force: true });
-    server.updateStateAndPersist((st) => {
-      delete st.plugins?.[req.params.name!];
-    });
-    ok(res);
-  });
-
-  app.get("/api/plugins/:name/settings", (req, res) => {
-    const settingsKV = join(dataDir, "plugins", req.params.name!, "settings.kv");
-    res.json(loadSettingsKv(settingsKV));
-  });
-
-  app.post("/api/plugins/:name/settings", (req, res) => {
-    const settings = req.body as Record<string, string>;
-    if (!settings.status) {
-      res.status(400).send("status field is required");
-      return;
+    if (method === "DELETE") {
+      rmSync(join(dataDir, "plugins", name), { recursive: true, force: true });
+      server.updateStateAndPersist((st) => {
+        delete st.plugins?.[name];
+      });
+      return ok();
     }
-    if (settings.status !== "enabled" && settings.status !== "disabled") {
-      res.status(400).send("status must be 'enabled' or 'disabled'");
-      return;
-    }
-    const pluginDir = join(dataDir, "plugins", req.params.name!);
-    scanPluginsDir(join(dataDir, "plugins"));
-    mkdirSync(pluginDir, { recursive: true });
-    saveSettingsKv(settings, join(pluginDir, "settings.kv"));
-    server.updateStateAndPersist((st) => {
-      st.plugins ??= {};
-      const existing = structuredClone(
-        loadPluginMetadata(join(dataDir, "plugins"), req.params.name!) ?? {
-          name: req.params.name!,
-          version: "",
-          description: "",
-          author: "",
-          bizhawk_version: "",
-          status: "disabled",
-        }
-      ) as MutablePlugin;
-      existing.status = settings.status as typeof existing.status;
-      st.plugins[req.params.name!] = existing;
-    });
-    res.json({ status: "ok" });
-  });
+  }
 
-  app.post("/api/plugins/:name/reload", (req, res) => {
+  const pluginSettings = pathname.match(/^\/api\/plugins\/([^/]+)\/settings$/);
+  if (pluginSettings) {
+    const name = decodeURIComponent(pluginSettings[1]!);
+    if (method === "GET") {
+      return json(loadSettingsKv(join(dataDir, "plugins", name, "settings.kv")));
+    }
+    if (method === "POST") {
+      const settings = (await readJsonBody(req)) as Record<string, string>;
+      if (!settings.status) return text("status field is required", 400);
+      if (settings.status !== "enabled" && settings.status !== "disabled") {
+        return text("status must be 'enabled' or 'disabled'", 400);
+      }
+      const pluginDir = join(dataDir, "plugins", name);
+      scanPluginsDir(join(dataDir, "plugins"));
+      ensureDirSync(pluginDir);
+      saveSettingsKv(settings, join(pluginDir, "settings.kv"));
+      server.updateStateAndPersist((st) => {
+        st.plugins ??= {};
+        const existing = structuredClone(
+          loadPluginMetadata(join(dataDir, "plugins"), name) ?? {
+            name,
+            version: "",
+            description: "",
+            author: "",
+            bizhawk_version: "",
+            status: "disabled",
+          }
+        ) as MutablePlugin;
+        existing.status = settings.status as typeof existing.status;
+        st.plugins[name] = existing;
+      });
+      return json({ status: "ok" });
+    }
+  }
+
+  const pluginReload = pathname.match(/^\/api\/plugins\/([^/]+)\/reload$/);
+  if (pluginReload && method === "POST") {
+    const name = decodeURIComponent(pluginReload[1]!);
     server.broadcastToPlayers({
       cmd: "plugin_reload",
-      id: `plugin-reload-${Date.now()}-${req.params.name}`,
-      payload: { plugin_name: req.params.name },
+      id: `plugin-reload-${Date.now()}-${name}`,
+      payload: { plugin_name: name },
     });
-    res.json({ status: "ok" });
-  });
+    return json({ status: "ok" });
+  }
 
-  app.post("/api/open_roms_folder", (_req, res) => {
-    const romsDir = join(dataDir, "roms");
-    openPathInFileManager(romsDir);
-    ok(res);
-  });
+  if (method === "POST" && pathname === "/api/open_roms_folder") {
+    openPathInFileManager(join(dataDir, "roms"));
+    return ok();
+  }
 
-  app.post("/api/open_plugins_folder", (_req, res) => {
+  if (method === "POST" && pathname === "/api/open_plugins_folder") {
     openPathInFileManager(join(dataDir, "plugins"));
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.post("/api/message_player", (req, res) => {
-    const b = req.body as {
-      player?: string;
-      message?: string;
-      duration?: number;
-      x?: number;
-      y?: number;
-      fontsize?: number;
-      fg?: string;
-      bg?: string;
-    };
-    if (!b.player || !b.message) {
-      res.status(400).send("missing player or message");
-      return;
-    }
-    const player = server.snapshotState().players[b.player];
-    if (!player) {
-      res.status(404).send("player not found");
-      return;
-    }
+  if (method === "POST" && pathname === "/api/message_player") {
+    const b = await readJsonBody(req);
+    const playerName = (b.player as string | undefined) ?? "";
+    const message = (b.message as string | undefined) ?? "";
+    if (!playerName || !message) return text("missing player or message", 400);
+    const player = server.snapshotState().players[playerName];
+    if (!player) return text("player not found", 404);
     try {
       server.sendToPlayer(player, {
         cmd: "message",
         id: `message-${Date.now()}`,
         payload: {
-          message: b.message,
-          duration: b.duration ?? 3,
-          x: b.x ?? 10,
-          y: b.y ?? 10,
-          fontsize: b.fontsize ?? 12,
-          fg: b.fg ?? "#FFFFFF",
-          bg: b.bg ?? "#000000",
+          message,
+          duration: (b.duration as number | undefined) ?? 3,
+          x: (b.x as number | undefined) ?? 10,
+          y: (b.y as number | undefined) ?? 10,
+          fontsize: (b.fontsize as number | undefined) ?? 12,
+          fg: (b.fg as string | undefined) ?? "#FFFFFF",
+          bg: (b.bg as string | undefined) ?? "#000000",
         },
       });
-      res.json({ result: "ok" });
+      return json({ result: "ok" });
     } catch (err) {
-      res.status(500).send(String(err));
+      return text(String(err), 500);
     }
-  });
+  }
 
-  app.post("/api/message_all", (req, res) => {
-    const b = req.body as { message?: string };
-    if (!b.message) {
-      res.status(400).send("missing message");
-      return;
-    }
+  if (method === "POST" && pathname === "/api/message_all") {
+    const b = await readJsonBody(req);
+    const message = (b.message as string | undefined) ?? "";
+    if (!message) return text("missing message", 400);
     server.broadcastToPlayers({
       cmd: "message",
       id: `message-all-${Date.now()}`,
       payload: {
-        message: b.message,
+        message,
         duration: 3,
         x: 10,
         y: 10,
@@ -526,144 +505,146 @@ export function createHttpApp(server: BizShuffleServer): Express {
         bg: "#000000",
       },
     });
-    res.json({ result: "ok" });
-  });
+    return json({ result: "ok" });
+  }
 
-  app.post("/api/fullscreen_toggle", (req, res) => {
-    const playerName = (req.body as { player?: string }).player ?? "";
+  if (method === "POST" && pathname === "/api/fullscreen_toggle") {
+    const body = await readJsonBody(req);
+    const playerName = (body.player as string | undefined) ?? "";
     const player = server.snapshotState().players[playerName];
-    if (!player) {
-      res.status(404).send("player not found");
-      return;
-    }
+    if (!player) return text("player not found", 404);
     try {
       server.sendToPlayer(player, {
         cmd: "fullscreen_toggle",
         id: `fs-${Date.now()}`,
         payload: {},
       });
-      res.json({ result: "ok" });
+      return json({ result: "ok" });
     } catch (err) {
-      res.status(500).send(String(err));
+      return text(String(err), 500);
     }
-  });
+  }
 
-  app.post("/api/check_player_config", (req, res) => {
-    const playerName = (req.body as { player?: string }).player ?? "";
+  if (method === "POST" && pathname === "/api/check_player_config") {
+    const body = await readJsonBody(req);
+    const playerName = (body.player as string | undefined) ?? "";
     const player = server.snapshotState().players[playerName];
-    if (!player) {
-      res.status(404).send("player not found");
-      return;
-    }
-    if (!player.connected) {
-      res.status(400).send("player not connected");
-      return;
-    }
+    if (!player) return text("player not found", 404);
+    if (!player.connected) return text("player not connected", 400);
     server.sendToPlayer(player, {
       cmd: "check_config",
       id: `check-config-${Date.now()}`,
       payload: { config_keys: server.snapshotState().config_keys ?? [] },
     });
-    res.json({ status: "command_sent" });
-  });
+    return json({ status: "command_sent" });
+  }
 
-  app.post("/api/update_player_config", (req, res) => {
-    const b = req.body as { player?: string; config?: string };
-    const player = b.player ? server.snapshotState().players[b.player] : undefined;
-    if (!player) {
-      res.status(404).send("player not found");
-      return;
+  if (method === "POST" && pathname === "/api/update_player_config") {
+    const b = await readJsonBody(req);
+    const player = b.player ? server.snapshotState().players[b.player as string] : undefined;
+    if (!player) return text("player not found", 404);
+    try {
+      server.sendToPlayer(player, {
+        cmd: "update_config",
+        id: `update-config-${Date.now()}`,
+        payload: { config_updates: b.config },
+      });
+      return json({ status: "command_sent" });
+    } catch (err) {
+      return text(String(err), 500);
     }
-    server.sendToPlayer(player, {
-      cmd: "update_config",
-      id: `update-config-${Date.now()}`,
-      payload: { config_updates: b.config },
-    });
-    res.json({ status: "command_sent" });
-  });
+  }
 
-  app.post("/api/set_config_keys", (req, res) => {
-    const keys = (req.body as { config_keys?: string[] }).config_keys ?? [];
+  if (method === "POST" && pathname === "/api/set_config_keys") {
+    const body = await readJsonBody(req);
+    const keys = (body.config_keys as string[] | undefined) ?? [];
     server.updateStateAndPersist((st) => {
       st.config_keys = keys;
     });
-    res.json({ status: "config_keys_updated" });
-  });
+    return json({ status: "config_keys_updated" });
+  }
 
-  app.get("/files/list.json", (_req, res) => {
-    res.json(listRoms(dataDir));
-  });
+  if (method === "GET" && pathname === "/files/list.json") {
+    return json(listRoms(dataDir));
+  }
 
-  app.use("/files/plugins", express.static(join(dataDir, "plugins")));
-  app.use("/files", express.static(join(dataDir, "roms")));
+  if (method === "GET" && pathname.startsWith("/files/plugins/")) {
+    const file = serveUnderRoot(join(dataDir, "plugins"), pathname.slice("/files/plugins/".length));
+    return file ?? text("not found", 404);
+  }
 
-  app.post("/upload", upload.single("file"), (req, res) => {
-    if (!req.file) {
-      res.status(400).send("file missing");
-      return;
-    }
+  if (method === "GET" && pathname.startsWith("/files/")) {
+    const file = serveUnderRoot(join(dataDir, "roms"), pathname.slice("/files/".length));
+    return file ?? text("not found", 404);
+  }
+
+  if (method === "POST" && pathname === "/upload") {
+    const form = await req.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) return text("file missing", 400);
+    if (file.size > UPLOAD_LIMIT) return text("file too large", 413);
     const romsDir = join(dataDir, "roms");
-    mkdirSync(romsDir, { recursive: true });
-    const dst = join(romsDir, req.file.originalname);
-    writeFileSync(dst, req.file.buffer);
-    ok(res);
-  });
+    ensureDirSync(romsDir);
+    const dst = join(romsDir, file.name);
+    await writeBytesAtomic(dst, Buffer.from(await file.arrayBuffer()));
+    return ok();
+  }
 
-  app.get("/api/BizhawkFiles.zip", (_req, res) => {
-    res.status(404).send("BizhawkFiles not found");
-  });
+  if (method === "GET" && pathname === "/api/BizhawkFiles.zip") {
+    return text("BizhawkFiles not found", 404);
+  }
 
-  app.post("/save/upload", upload.single("save"), (req, res) => {
-    if (!req.file) {
-      res.status(400).send("save file missing");
-      return;
-    }
-    const filename = (req.body as { filename?: string }).filename ?? req.file.originalname;
+  if (method === "POST" && pathname === "/save/upload") {
+    const form = await req.formData();
+    const save = form.get("save");
+    if (!(save instanceof File)) return text("save file missing", 400);
+    if (save.size > UPLOAD_LIMIT) return text("save file too large", 413);
+    const filename = (form.get("filename") as string | null) ?? save.name;
     const instanceId = filename.replace(/\.state$/, "");
-    const verified = verifyBizHawkSavestate(req.file.buffer);
+    const buffer = Buffer.from(await save.arrayBuffer());
+    const verified = verifyBizHawkSavestate(buffer);
     if (!verified.ok) {
-      res.status(422).json({
-        error: "INVALID_SAVESTATE",
-        code: verified.code,
-        message: verified.message,
-        detail: verified.detail,
-      });
-      return;
+      return json(
+        {
+          error: "INVALID_SAVESTATE",
+          code: verified.code,
+          message: verified.message,
+          detail: verified.detail,
+        },
+        422
+      );
     }
     const savesDir = join(dataDir, "saves");
-    mkdirSync(savesDir, { recursive: true });
-    writeFileSync(join(savesDir, filename), req.file.buffer);
+    ensureDirSync(savesDir);
+    await writeBytesAtomic(join(savesDir, filename), buffer);
     server.setInstanceFileState(instanceId, "ready");
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.post("/save/no-save", express.urlencoded({ extended: true }), (req, res) => {
-    const instanceId = (req.body as { instance_id?: string }).instance_id ?? "";
-    if (!instanceId) {
-      res.status(400).send("instance_id required");
-      return;
-    }
+  if (method === "POST" && pathname === "/save/no-save") {
+    const body = await readUrlencodedBody(req);
+    const instanceId = body.instance_id ?? "";
+    if (!instanceId) return text("instance_id required", 400);
     server.setInstanceFileState(instanceId, "none");
-    ok(res);
-  });
+    return ok();
+  }
 
-  app.get("/save/:filename", async (req, res) => {
-    const filename = req.params.filename!;
+  const saveFile = pathname.match(/^\/save\/([^/]+)$/);
+  if (saveFile && method === "GET") {
+    const filename = decodeURIComponent(saveFile[1]!);
     const instanceId = filename.replace(/\.state$/, "");
     const savePath = join(dataDir, "saves", filename);
     const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
       const inst = (server.snapshotState().game_instances ?? []).find((i) => i.id === instanceId);
       if (!inst || inst.file_state === "ready" || inst.file_state === "none") break;
-      await new Promise((r) => setTimeout(r, 100));
+      await Bun.sleep(100);
     }
-    if (!existsSync(savePath)) {
-      res.status(404).send("save file not found");
-      return;
-    }
+    if (!pathExists(savePath)) return text("save file not found", 404);
     server.setInstanceFileState(instanceId, "ready");
-    res.sendFile(savePath);
-  });
+    const file = serveFile(savePath);
+    return file ?? text("save file not found", 404);
+  }
 
-  return app;
+  return text("not found", 404);
 }

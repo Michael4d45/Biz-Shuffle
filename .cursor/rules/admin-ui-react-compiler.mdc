@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Admin UI — React Compiler
 
-`@bizshuffle-bun/admin-ui` is compiled with **React Compiler** (Vite 8 + `@vitejs/plugin-react` + `reactCompilerPreset` in `packages/admin-ui/vite.config.ts`). ESLint `eslint-plugin-react-compiler` is enabled for this package.
+`@bizshuffle-bun/admin-ui` is compiled with **React Compiler** (`babel-plugin-react-compiler` in `packages/admin-ui/scripts/build-shared.ts`). ESLint `eslint-plugin-react-compiler` is enabled for this package.
 
 ## Do not add manual memoization
 

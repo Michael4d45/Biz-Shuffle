@@ -1,6 +1,7 @@
-import { connect as netConnect, createServer, type Socket } from "node:net";
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
+import type { Socket } from "bun";
 import { IPC_TIMEOUT_MS, luaReconnectDelayMs } from "@bizshuffle-bun/protocol";
+import { readText } from "./bun-io.js";
 
 const MSG_ACK = "ACK";
 const MSG_NACK = "NACK";
@@ -23,12 +24,16 @@ type Pending = { id: string; resolve: (ok: boolean) => void; timer: ReturnType<t
 export async function reserveLuaPort(host = "127.0.0.1", start = 55355): Promise<number> {
   for (let port = start; port < 65535; port++) {
     try {
-      await new Promise<void>((resolve, reject) => {
-        const s = createServer();
-        s.once("error", reject);
-        s.listen(port, host, () => s.close(() => resolve()));
+      const server = Bun.listen({
+        hostname: host,
+        port,
+        socket: {
+          data() {},
+        },
       });
-      return port;
+      const bound = server.port ?? port;
+      server.stop(true);
+      return bound;
     } catch {
       /* port in use */
     }
@@ -40,8 +45,8 @@ export function writeLuaPortFile(portFile: string, port: number): void {
   writeFileSync(portFile, `${port}\n`, "utf8");
 }
 
-export function readLuaPortFile(portFile: string): number {
-  const port = Number(readFileSync(portFile, "utf8").trim());
+export async function readLuaPortFile(portFile: string): Promise<number> {
+  const port = Number((await readText(portFile)).trim());
   if (!Number.isFinite(port) || port <= 0 || port >= 65536) {
     throw new Error(`invalid lua port in ${portFile}`);
   }
@@ -73,7 +78,6 @@ export class BizhawkIpc {
     this.addr = `${this.host}:${this.listenPort}`;
   }
 
-  /** Port Lua is listening on (for tests/diagnostics). */
   get port(): number {
     return this.listenPort;
   }
@@ -87,7 +91,7 @@ export class BizhawkIpc {
   async start(): Promise<number> {
     if (this.opts.portFile) {
       try {
-        this.listenPort = readLuaPortFile(this.opts.portFile);
+        this.listenPort = await readLuaPortFile(this.opts.portFile);
       } catch {
         /* file may not exist yet; caller should write before BizHawk launch */
       }
@@ -105,11 +109,8 @@ export class BizhawkIpc {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    if (this.socket) {
-      this.socket.destroy();
-      this.socket = null;
-    }
-    // Keep lua_server_port.txt — BizHawk reads it at launch; deleting here causes port drift on reconnect.
+    this.socket?.end();
+    this.socket = null;
     while (this.queue.length > 0) {
       this.queue.shift()!.resolve(false);
     }
@@ -172,45 +173,39 @@ export class BizhawkIpc {
     }
   }
 
-  private connectOnce(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const socket = netConnect({ host: this.host, port: this.listenPort });
-      const timer = setTimeout(() => {
-        socket.destroy();
-        reject(new Error(`connect timeout ${this.addr}`));
-      }, 2000);
-
-      socket.once("error", (err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-      socket.once("connect", () => {
-        clearTimeout(timer);
-        this.attachSocket(socket);
-        resolve();
-      });
-    });
+  private async connectOnce(): Promise<void> {
+    const socket = await Promise.race([
+      Bun.connect({
+        hostname: this.host,
+        port: this.listenPort,
+        socket: {
+          data: (_sock, data) => this.onData(String(data)),
+          close: () => this.onSocketClose(),
+          error: () => this.onSocketClose(),
+        },
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`connect timeout ${this.addr}`)), 2000)
+      ),
+    ]);
+    this.attachSocket(socket);
   }
 
   private attachSocket(sock: Socket): void {
-    if (this.socket) this.socket.destroy();
+    if (this.socket) this.socket.end();
     this.socket = sock;
     this.buffer = "";
-    sock.setEncoding("utf8");
-    sock.on("data", (chunk: Buffer | string) => this.onData(String(chunk)));
-    sock.on("close", () => {
-      this.ready = false;
-      this.socket = null;
-      if (this.pending) {
-        clearTimeout(this.pending.timer);
-        this.pending.resolve(false);
-        this.pending = null;
-      }
-      if (!this.stopped) this.scheduleReconnect(luaReconnectDelayMs(this.reconnectAttempt++));
-    });
-    sock.on("error", () => {
-      sock.destroy();
-    });
+  }
+
+  private onSocketClose(): void {
+    this.ready = false;
+    this.socket = null;
+    if (this.pending) {
+      clearTimeout(this.pending.timer);
+      this.pending.resolve(false);
+      this.pending = null;
+    }
+    if (!this.stopped) this.scheduleReconnect(luaReconnectDelayMs(this.reconnectAttempt++));
   }
 
   private onData(chunk: string): void {
@@ -254,7 +249,7 @@ export class BizhawkIpc {
 
   private processQueue(): void {
     if (this.processing || this.pending || this.queue.length === 0) return;
-    if (!this.socket || this.socket.destroyed) {
+    if (!this.socket) {
       while (this.queue.length > 0) this.queue.shift()!.resolve(false);
       return;
     }
@@ -289,8 +284,6 @@ export class BizhawkIpc {
       timer,
     };
 
-    this.socket.write(`${item.line}\n`, () => {
-      /* wait for ACK/NACK */
-    });
+    this.socket.write(`${item.line}\n`);
   }
 }

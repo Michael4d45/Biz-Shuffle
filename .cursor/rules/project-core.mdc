@@ -13,7 +13,6 @@ Bun + Electrobun BizShuffle rewrite. Authoritative product spec: `docs/SPEC.md`.
 |---------|------|
 | `@bizshuffle-bun/protocol` | Effect Schema types, WS codec, shared constants |
 | `@bizshuffle-bun/domain` | Pure session logic — **no I/O** |
-| `@bizshuffle-bun/ports` | Port interfaces |
 | `@bizshuffle-bun/server-host` | HTTP/WS server, persistence, game modes |
 | `@bizshuffle-bun/client-host` | Player runtime, BizHawk IPC, WS client |
 | `@bizshuffle-bun/admin-ui` | React admin SPA → `server-host/priv/static` (React Compiler; see `admin-ui-react-compiler` rule) |

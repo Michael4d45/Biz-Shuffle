@@ -98,7 +98,7 @@ flowchart TB
 ```
 TSBunShuffle/
 ├── apps/server, desktop, client-cli/
-├── packages/protocol, domain, ports, adapters-bun, server-host, client-host, admin-ui, testing
+├── packages/protocol, domain, server-host, client-host, admin-ui, testing
 ├── assets/server.lua
 ├── roms/, saves/, state.json, config.json   (runtime, typically ~/BizShuffle)
 └── docs/SPEC.md, docs/contracts/

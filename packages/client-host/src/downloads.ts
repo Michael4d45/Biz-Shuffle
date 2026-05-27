@@ -1,7 +1,7 @@
-import { createWriteStream, existsSync, mkdirSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { pipeline } from "node:stream/promises";
-import { Readable } from "node:stream";
+import { ROM_DOWNLOAD_RETRIES, romRetryDelayMs } from "@bizshuffle-bun/protocol";
+import { ensureDirSync, pathExists, writeBytesAtomic } from "./bun-io.js";
 
 export async function ensureFile(
   baseUrl: string,
@@ -10,25 +10,21 @@ export async function ensureFile(
   fetchFn: typeof fetch = fetch
 ): Promise<void> {
   const dest = join(dataDir, "roms", ...name.split("/"));
-  if (existsSync(dest)) return;
-  mkdirSync(dirname(dest), { recursive: true });
+  if (pathExists(dest)) return;
+  ensureDirSync(dirname(dest));
   const url = `${baseUrl.replace(/\/$/, "")}/files/${name}`;
   let lastErr: Error | undefined;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < ROM_DOWNLOAD_RETRIES; i++) {
     try {
       const res = await fetchFn(url);
       if (!res.ok || !res.body) throw new Error(`bad status ${res.status}`);
-      const tmp = `${dest}.tmp`;
-      await pipeline(
-        Readable.fromWeb(res.body as unknown as import("node:stream/web").ReadableStream),
-        createWriteStream(tmp)
-      );
-      const { renameSync } = await import("node:fs");
-      renameSync(tmp, dest);
+      await writeBytesAtomic(dest, Buffer.from(await res.arrayBuffer()));
       return;
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err));
-      await new Promise((r) => setTimeout(r, 500));
+      if (i < ROM_DOWNLOAD_RETRIES - 1) {
+        await Bun.sleep(romRetryDelayMs(i));
+      }
     }
   }
   throw lastErr ?? new Error("download failed");
@@ -41,7 +37,7 @@ export async function downloadPluginFiles(
   fetchFn: typeof fetch = fetch
 ): Promise<void> {
   const localDir = join(pluginsDir, pluginName);
-  mkdirSync(localDir, { recursive: true });
+  ensureDirSync(localDir);
   const remoteBase = `${baseUrl.replace(/\/$/, "")}/files/plugins/${pluginName}`;
   const files = ["plugin.lua", "meta.kv", "settings.kv"];
   for (const file of files) {
@@ -68,13 +64,7 @@ async function downloadOne(
     throw new Error(`${url}: ${res.status}`);
   }
   if (!res.body) throw new Error(`empty body for ${url}`);
-  const tmp = `${dest}.tmp`;
-  await pipeline(
-    Readable.fromWeb(res.body as unknown as import("node:stream/web").ReadableStream),
-    createWriteStream(tmp)
-  );
-  const { renameSync } = await import("node:fs");
-  renameSync(tmp, dest);
+  await writeBytesAtomic(dest, Buffer.from(await res.arrayBuffer()));
 }
 
 /** Download a host save into `{dataDir}/saves/{instanceId}.state` (no-op if missing on host). */
@@ -85,17 +75,13 @@ export async function ensureSaveFile(
   fetchFn: typeof fetch = fetch
 ): Promise<void> {
   const dest = join(dataDir, "saves", `${instanceId}.state`);
-  if (existsSync(dest)) return;
+  if (pathExists(dest)) return;
   const url = `${baseUrl.replace(/\/$/, "")}/save/${instanceId}.state`;
   const res = await fetchFn(url);
   if (res.status === 404) return;
   if (!res.ok) throw new Error(`save download failed: ${res.status}`);
-  mkdirSync(dirname(dest), { recursive: true });
-  const tmp = `${dest}.tmp`;
-  const buf = Buffer.from(await res.arrayBuffer());
-  const { writeFileSync, renameSync } = await import("node:fs");
-  writeFileSync(tmp, buf);
-  renameSync(tmp, dest);
+  ensureDirSync(dirname(dest));
+  await writeBytesAtomic(dest, Buffer.from(await res.arrayBuffer()));
 }
 
 export function waitForFileStable(path: string, timeoutMs = 2000): Promise<void> {

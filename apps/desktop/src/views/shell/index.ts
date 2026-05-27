@@ -244,9 +244,7 @@ function versionLabelText(): string {
   const ready = Boolean(updateReady);
   const available = Boolean(updateAvailable);
   const devSuffix = channel === "dev" ? " (dev)" : "";
-  return available && latest && !ready
-    ? `v${ver} → v${latest}`
-    : `v${ver}${devSuffix}`;
+  return available && latest && !ready ? `v${ver} → v${latest}` : `v${ver}${devSuffix}`;
 }
 
 function updateButtonHtml(): string {
@@ -304,7 +302,9 @@ function logFooterDiagnostics(tag: string): void {
     parts.push(
       `rect=${r.width.toFixed(1)}x${r.height.toFixed(1)}@(${r.left.toFixed(1)},${r.top.toFixed(1)})`
     );
-    parts.push(`color=${cs.color} vis=${cs.visibility} opacity=${cs.opacity} fontSize=${cs.fontSize}`);
+    parts.push(
+      `color=${cs.color} vis=${cs.visibility} opacity=${cs.opacity} fontSize=${cs.fontSize}`
+    );
   }
   if (bar) {
     const br = bar.getBoundingClientRect();

@@ -1,4 +1,5 @@
-export { ClientRuntime, createClientRuntime, loadClientConfig } from "./runtime.js";
+export { ClientRuntime, loadClientConfig } from "./runtime.js";
+export { ensureDirSync, pathExists, readText, writeBytesAtomic } from "./bun-io.js";
 export type { ClientRuntimeOptions } from "./runtime.js";
 export { ClientApi } from "./api.js";
 export { BizhawkIpc, reserveLuaPort, writeLuaPortFile, readLuaPortFile } from "./bizhawk-ipc.js";
