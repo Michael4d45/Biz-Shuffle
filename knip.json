@@ -11,7 +11,8 @@
     },
     "apps/desktop": {
       "entry": ["src/bun/index.ts", "src/views/shell/index.ts", "scripts/**/*.ts"],
-      "project": ["src/**/*.ts", "scripts/**/*.ts"]
+      "project": ["src/**/*.ts", "scripts/**/*.ts"],
+      "ignoreDependencies": ["@types/three"]
     },
     "packages/admin-ui": {
       "entry": ["src/main.tsx", "scripts/**/*.ts"],
