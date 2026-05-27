@@ -148,8 +148,9 @@ export class BizhawkIpc {
     await this.sendCommand(["MSG", text, "3.0", "10", "10", "12", "#FFFFFF", "#000000"]);
   }
 
-  async sendSave(): Promise<void> {
-    await this.sendCommand(["SAVE"]);
+  async sendSave(instanceId?: string): Promise<void> {
+    const parts = instanceId ? ["SAVE", instanceId] : ["SAVE"];
+    await this.sendCommand(parts);
   }
 
   private scheduleReconnect(delayMs: number): void {

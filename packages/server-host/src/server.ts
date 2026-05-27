@@ -27,6 +27,9 @@ export class BizShuffleServer {
   private serve: BizShuffleServe | null = null;
   private discovery: DiscoveryBroadcaster | null = null;
   pendingInstanceCount = 0;
+  /** Last swap target the player client acknowledged (per player name). */
+  private readonly appliedSwapTarget = new Map<string, string>();
+  private readonly swapInFlight = new Set<string>();
 
   readonly dataDir: string;
   readonly adminStaticDir: string;
@@ -192,26 +195,51 @@ export class BizShuffleServer {
     }
   }
 
-  sendSwap(player: Player): void {
+  swapTargetKey(player: Player): string {
+    return `${player.game ?? ""}\0${player.instance_id ?? ""}`;
+  }
+
+  shouldSendSwap(player: Player, force?: boolean): boolean {
+    if (force) return true;
+    return this.appliedSwapTarget.get(player.name) !== this.swapTargetKey(player);
+  }
+
+  recordSwapApplied(playerName: string, player: Player): void {
+    this.appliedSwapTarget.set(playerName, this.swapTargetKey(player));
+  }
+
+  clearAppliedSwap(playerName: string): void {
+    this.appliedSwapTarget.delete(playerName);
+  }
+
+  sendSwap(player: Player, options?: { skipSave?: boolean; force?: boolean }): void {
+    if (!this.shouldSendSwap(player, options?.force)) return;
+    if (this.swapInFlight.has(player.name)) return;
+    this.swapInFlight.add(player.name);
     void (async () => {
-      const payload: Record<string, string> = { game: player.game ?? "" };
+      const payload: Record<string, string | boolean> = { game: player.game ?? "" };
       if (player.instance_id) payload.instance_id = player.instance_id;
+      if (options?.skipSave) payload.skip_save = true;
       const cmd: Command = {
         cmd: "swap",
         payload,
         id: `swap-${Date.now()}-${player.name}-${Math.random().toString(36).slice(2, 8)}`,
       };
       try {
-        await this.wsHub?.sendAndWait(player, cmd);
+        await this.wsHub?.sendAndWait(player, cmd, {
+          onAck: () => this.recordSwapApplied(player.name, player),
+        });
       } catch {
         /* timeout or disconnected */
+      } finally {
+        this.swapInFlight.delete(player.name);
       }
     })();
   }
 
-  sendSwapAll(): void {
+  sendSwapAll(options?: { skipSave?: boolean }): void {
     for (const p of Object.values(this.snapshotState().players)) {
-      if (p.connected) this.sendSwap(p);
+      if (p.connected) this.sendSwap(p, options);
     }
   }
 

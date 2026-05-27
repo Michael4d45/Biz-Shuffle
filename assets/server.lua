@@ -374,18 +374,44 @@ local function draw_messages()
     messages = keep
 end
 
+local function is_valid_zip(path)
+    local f = io.open(path, "rb")
+    if not f then
+        return false
+    end
+    local size = f:seek("end")
+    if size < 22 then -- Minimum ZIP footer length
+        f:close()
+        return false
+    end
+    local chunk_size = math.min(65536, size)
+    f:seek("end", -chunk_size)
+    local tail = f:read(chunk_size)
+    f:close()
+    if not tail then
+        return false
+    end
+    return tail:find("PK\005\006", 1, true) ~= nil
+end
+
 local function save_state(path)
     if not path then
-        return
+        error("no save path")
     end
     console.log("Saving state to: " .. tostring(path))
     local ok, err = pcall(function()
         savestate.save(path)
     end)
     if not ok then
-        console.log("Failed to save state to '" .. tostring(path) .. "': " .. tostring(err))
-        console.log("Save operation failed, but continuing...")
+        error("Failed to save state to '" .. tostring(path) .. "': " .. tostring(err))
     end
+    local deadline = now() + 5.0
+    while now() < deadline do
+        if is_valid_zip(path) then
+            return
+        end
+    end
+    error("save file is not a valid BizHawk zip after save: " .. tostring(path))
 end
 
 local function sanitize_filename(name)
@@ -413,26 +439,6 @@ local function get_save_path()
     end
 
     return SAVE_DIR .. "/" .. name .. ".state"
-end
-
-local function is_valid_zip(path)
-    local f = io.open(path, "rb")
-    if not f then
-        return false
-    end
-    local size = f:seek("end")
-    if size < 22 then -- Minimum ZIP footer length
-        f:close()
-        return false
-    end
-    local chunk_size = math.min(65536, size)
-    f:seek("end", -chunk_size)
-    local tail = f:read(chunk_size)
-    f:close()
-    if not tail then
-        return false
-    end
-    return tail:find("PK\005\006", 1, true) ~= nil
 end
 
 local function load_state_if_exists()
@@ -674,6 +680,10 @@ local function handle_line(line)
         local id, cmd = parts[2], parts[3]
         if cmd == "SAVE" then
             safe_exec_and_ack(id, function()
+                local instance = parts[4]
+                if instance and instance ~= "" then
+                    InstanceID = instance
+                end
                 do_save()
             end)
         elseif cmd == "LOAD" then

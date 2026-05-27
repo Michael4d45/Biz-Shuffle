@@ -109,9 +109,11 @@ export class FakeLuaPeer {
     }
 
     if (cmd === "SAVE") {
+      const instance = parts[4] || this.instanceId;
+      this.instanceId = instance;
       const dir = join(this.opts.savesDir, "saves");
       ensureDirSync(dir);
-      await writeBytesAtomic(join(dir, `${this.instanceId}.state`), MINIMAL_SAVE_BYTES);
+      await writeBytesAtomic(join(dir, `${instance}.state`), MINIMAL_SAVE_BYTES);
     }
 
     this.socket?.write(`ACK|${id}\n`);

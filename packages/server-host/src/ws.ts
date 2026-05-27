@@ -12,11 +12,12 @@ interface WsClient {
 
 export class WsHub {
   private readonly clients = new Map<ServerWebSocket<undefined>, WsClient>();
+  private readonly clientMessageChains = new WeakMap<WsClient, Promise<void>>();
   private readonly playerClients = new Map<string, WsClient>();
   private readonly adminClients = new Map<string, WsClient>();
   private readonly pending = new Map<
     string,
-    { resolve: (v: string) => void; reject: (e: Error) => void }
+    { resolve: (v: string) => void; reject: (e: Error) => void; onAck?: () => void }
   >();
   private readonly flushTimers = new Map<
     ServerWebSocket<undefined>,
@@ -56,21 +57,26 @@ export class WsHub {
     }, 30_000);
     this.pingTimers.set(ws, pingInterval);
 
-    const flush = () => {
-      while (client.sendQueue.length > 0 && ws.readyState === WebSocket.OPEN) {
-        const cmd = client.sendQueue.shift()!;
-        if (cmd.cmd === "ping") {
-          const payload =
-            typeof cmd.payload === "string" && cmd.payload
-              ? cmd.payload
-              : `${Date.now() * 1_000_000}`;
-          ws.ping(payload);
-        } else {
-          ws.send(JSON.stringify(cmd));
-        }
+    this.flushTimers.set(
+      ws,
+      setInterval(() => this.flushClient(client), 10)
+    );
+  }
+
+  private flushClient(client: WsClient): void {
+    const ws = client.ws;
+    while (client.sendQueue.length > 0 && ws.readyState === WebSocket.OPEN) {
+      const cmd = client.sendQueue.shift()!;
+      if (cmd.cmd === "ping") {
+        const payload =
+          typeof cmd.payload === "string" && cmd.payload
+            ? cmd.payload
+            : `${Date.now() * 1_000_000}`;
+        ws.ping(payload);
+      } else {
+        ws.send(JSON.stringify(cmd));
       }
-    };
-    this.flushTimers.set(ws, setInterval(flush, 10));
+    }
   }
 
   onPong(ws: ServerWebSocket<undefined>, data: string | Buffer): void {
@@ -103,7 +109,9 @@ export class WsHub {
     } catch {
       return;
     }
-    void this.handleMessage(client, cmd);
+    const prev = this.clientMessageChains.get(client) ?? Promise.resolve();
+    const next = prev.then(() => this.handleMessage(client, cmd)).catch(() => undefined);
+    this.clientMessageChains.set(client, next);
   }
 
   onClose(ws: ServerWebSocket<undefined>): void {
@@ -120,6 +128,7 @@ export class WsHub {
     const playerName = this.findPlayerName(client);
     if (playerName) {
       this.playerClients.delete(playerName);
+      this.server.clearAppliedSwap(playerName);
       this.server.updateStateAndPersist((st) => {
         const pl = st.players[playerName];
         if (pl) {
@@ -155,6 +164,7 @@ export class WsHub {
         const pending = this.pending.get(cmd.id);
         if (pending) {
           const reason = cmd.cmd === "nack" ? `nack|${JSON.stringify(cmd.payload ?? {})}` : "ack";
+          if (cmd.cmd === "ack") pending.onAck?.();
           pending.resolve(reason);
           this.pending.delete(cmd.id);
         }
@@ -192,7 +202,9 @@ export class WsHub {
         });
         const player = this.server.assignPlayerOnConnect(name);
         this.server.broadcastGamesUpdate(player);
-        if (player.game) this.server.sendSwap(player);
+        if (player.game && pl?.bizhawk_ready) {
+          this.server.sendSwap(player, { skipSave: true });
+        }
         void this.sendPing(player);
         return;
       }
@@ -211,7 +223,9 @@ export class WsHub {
           });
           if (becameReady) {
             const player = this.server.currentPlayer(name);
-            if (player.game) this.server.sendSwap(player);
+            if (player.game && this.server.shouldSendSwap(player)) {
+              this.server.sendSwap(player, { skipSave: true });
+            }
           }
         }
         return;
@@ -261,17 +275,7 @@ export class WsHub {
   enqueue(client: WsClient, cmd: Command): void {
     if (client.closed) return;
     client.sendQueue.push(cmd);
-    if (client.ws.readyState === WebSocket.OPEN) {
-      if (cmd.cmd === "ping") {
-        const payload =
-          typeof cmd.payload === "string" && cmd.payload
-            ? cmd.payload
-            : `${Date.now() * 1_000_000}`;
-        client.ws.ping(payload);
-      } else {
-        client.ws.send(JSON.stringify(cmd));
-      }
-    }
+    this.flushClient(client);
   }
 
   broadcastToPlayers(cmd: Command): void {
@@ -298,7 +302,12 @@ export class WsHub {
     this.enqueue(client, cmd);
   }
 
-  async sendAndWait(player: Player, cmd: Command, timeoutMs = SWAP_WAIT_MS): Promise<string> {
+  async sendAndWait(
+    player: Player,
+    cmd: Command,
+    options?: { timeoutMs?: number; onAck?: () => void }
+  ): Promise<string> {
+    const timeoutMs = options?.timeoutMs ?? SWAP_WAIT_MS;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(cmd.id);
@@ -313,6 +322,7 @@ export class WsHub {
           clearTimeout(timer);
           reject(e);
         },
+        onAck: options?.onAck,
       });
       try {
         this.sendToPlayer(player, cmd);

@@ -32,7 +32,7 @@ describe("hello player assignment", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  it("assigns save-mode instance on hello and sends swap", async () => {
+  it("assigns save-mode instance on hello and sends swap when bizhawk is ready", async () => {
     const wsUrl = server.url.replace("http://", "ws://") + "/ws";
     const ws = new WebSocket(wsUrl);
     const swaps: Array<{ game?: string; instance_id?: string }> = [];
@@ -61,7 +61,7 @@ describe("hello player assignment", () => {
       JSON.stringify({
         cmd: "hello",
         id: "hello-1",
-        payload: { name: "joiner", bizhawk_ready: false },
+        payload: { name: "joiner", bizhawk_ready: true },
       })
     );
 
@@ -88,7 +88,7 @@ describe("hello player assignment", () => {
     ws.close();
   });
 
-  it("re-sends swap when bizhawk becomes ready", async () => {
+  it("defers swap until bizhawk becomes ready and does not duplicate", async () => {
     const wsUrl = server.url.replace("http://", "ws://") + "/ws";
     const ws = new WebSocket(wsUrl);
     const swapIds: string[] = [];
@@ -99,7 +99,10 @@ describe("hello player assignment", () => {
       ws.on("message", (raw) => {
         try {
           const cmd = JSON.parse(raw.toString()) as { cmd?: string; id?: string };
-          if (cmd.cmd === "swap" && cmd.id) swapIds.push(cmd.id);
+          if (cmd.cmd === "swap" && cmd.id) {
+            swapIds.push(cmd.id);
+            ws.send(JSON.stringify({ cmd: "ack", id: cmd.id }));
+          }
         } catch {
           /* ignore */
         }
@@ -114,18 +117,8 @@ describe("hello player assignment", () => {
       })
     );
 
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("timeout waiting for first swap")), 5000);
-      const check = setInterval(() => {
-        if (swapIds.length >= 1) {
-          clearTimeout(timer);
-          clearInterval(check);
-          resolve();
-        }
-      }, 25);
-    });
-
-    const countBeforeReady = swapIds.length;
+    await new Promise((r) => setTimeout(r, 200));
+    expect(swapIds.length).toBe(0);
 
     ws.send(
       JSON.stringify({
@@ -136,9 +129,9 @@ describe("hello player assignment", () => {
     );
 
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("timeout waiting for second swap")), 5000);
+      const timer = setTimeout(() => reject(new Error("timeout waiting for swap")), 5000);
       const check = setInterval(() => {
-        if (swapIds.length > countBeforeReady) {
+        if (swapIds.length >= 1) {
           clearTimeout(timer);
           clearInterval(check);
           resolve();
@@ -146,7 +139,17 @@ describe("hello player assignment", () => {
       }, 25);
     });
 
-    expect(swapIds.length).toBeGreaterThan(countBeforeReady);
+    ws.send(
+      JSON.stringify({
+        cmd: "status_update",
+        id: "status-2",
+        payload: { bizhawk_ready: true },
+      })
+    );
+
+    await new Promise((r) => setTimeout(r, 200));
+    expect(swapIds.length).toBe(1);
+
     ws.close();
   });
 });

@@ -74,8 +74,11 @@ describe("Controller", () => {
     let ready = false;
     const dataDir = join("/tmp", `bizshuffle-ctrl-${Date.now()}`);
     const savesDir = join(dataDir, "saves");
+    const romsDir = join(dataDir, "roms");
     mkdirSync(savesDir, { recursive: true });
+    mkdirSync(romsDir, { recursive: true });
     writeFileSync(join(savesDir, "inst-1.state"), Buffer.alloc(1));
+    writeFileSync(join(romsDir, "game.zip"), Buffer.alloc(1));
 
     const bipc = {
       isReady: () => ready,
@@ -97,13 +100,14 @@ describe("Controller", () => {
     await controller.handle({
       cmd: "swap",
       id: "s-defer",
-      payload: { instance_id: "inst-1" },
+      payload: { game: "game.zip", instance_id: "inst-1", skip_save: true },
     });
     expect(sent.some((c) => c.cmd === "ack")).toBe(false);
 
     ready = true;
     await controller.onBizhawkReady();
-    expect(bipc.sendSave).toHaveBeenCalled();
+    expect(bipc.sendSave).not.toHaveBeenCalled();
+    expect(bipc.sendSwap).toHaveBeenCalled();
     expect(sent.some((c) => c.cmd === "ack" && c.id === "s-defer")).toBe(true);
   });
 

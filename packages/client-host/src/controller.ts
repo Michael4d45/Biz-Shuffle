@@ -5,19 +5,23 @@ import { verifyBizHawkSavestate } from "@bizshuffle-bun/savestate";
 import type { BizhawkIpc } from "./bizhawk-ipc.js";
 import type { ClientApiPort } from "./api.js";
 import { ensureFile, ensureSaveFile } from "./downloads.js";
-import { isSaveUploadRejected } from "./save-upload.js";
 import type { SendFn } from "./ws-client.js";
 import { PluginSyncManager } from "./plugin-sync.js";
 
-const MAX_SAVE_ATTEMPTS = 3;
+function localSavePath(dataDir: string, instanceId: string): string {
+  return join(dataDir, "saves", `${instanceId}.state`);
+}
 
-async function waitForLocalSave(path: string, timeoutMs = 5000): Promise<Buffer> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (existsSync(path)) return readFileSync(path);
-    await new Promise((r) => setTimeout(r, 25));
+function readVerifiedSave(path: string): Buffer {
+  if (!existsSync(path)) {
+    throw new Error(`save file not written: ${path}`);
   }
-  throw new Error(`save file not written: ${path}`);
+  const data = readFileSync(path);
+  const verified = verifyBizHawkSavestate(data);
+  if (!verified.ok) {
+    throw new Error(`invalid save (${verified.code}): ${verified.message}`);
+  }
+  return data;
 }
 
 export interface ControllerDeps {
@@ -35,6 +39,9 @@ export class Controller {
     nack: (id: string, reason: string) => Promise<void>;
   } | null = null;
 
+  /** Serialize BizHawk IPC work so request_save and swap cannot overlap. */
+  private commandChain: Promise<void> = Promise.resolve();
+
   constructor(private readonly deps: ControllerDeps) {}
 
   async onBizhawkReady(): Promise<void> {
@@ -45,6 +52,11 @@ export class Controller {
   }
 
   async handle(cmd: Command): Promise<void> {
+    this.commandChain = this.commandChain.then(() => this.dispatch(cmd)).catch(() => undefined);
+    return this.commandChain;
+  }
+
+  private async dispatch(cmd: Command): Promise<void> {
     const { ack, nack } = this.acks();
     switch (cmd.cmd) {
       case "start":
@@ -124,14 +136,34 @@ export class Controller {
     };
   }
 
+  private async saveInstanceToHost(instanceId: string): Promise<void> {
+    if (!this.deps.bipc?.isReady()) {
+      throw new Error("IPC not ready");
+    }
+    const savePath = localSavePath(this.deps.dataDir, instanceId);
+    try {
+      await this.deps.bipc.sendSave(instanceId);
+      const data = readVerifiedSave(savePath);
+      await this.deps.api.uploadSave(instanceId, data);
+    } catch (err) {
+      if (existsSync(savePath)) unlinkSync(savePath);
+      throw err;
+    }
+  }
+
   private async handleSwap(
     cmd: Command,
     ack: (id: string) => Promise<void>,
     nack: (id: string, reason: string) => Promise<void>
   ): Promise<void> {
-    const payload = (cmd.payload ?? {}) as { game?: string; instance_id?: string };
+    const payload = (cmd.payload ?? {}) as {
+      game?: string;
+      instance_id?: string;
+      skip_save?: boolean;
+    };
     const game = payload.game ?? "";
     const instanceId = payload.instance_id ?? "";
+    const skipSave = payload.skip_save === true;
 
     if (this.deps.bipc && !this.deps.bipc.isReady()) {
       this.pendingSwap = { cmd, ack, nack };
@@ -158,7 +190,7 @@ export class Controller {
 
     if (this.deps.bipc?.isReady()) {
       try {
-        if (instanceId) {
+        if (!skipSave) {
           await this.deps.bipc.sendSave();
         }
         if (game) {
@@ -235,36 +267,11 @@ export class Controller {
       await nack(cmd.id, "missing instance_id");
       return;
     }
-    if (!this.deps.bipc?.isReady()) {
-      await nack(cmd.id, "IPC not ready");
-      return;
-    }
-    const savePath = join(this.deps.dataDir, "saves", `${instanceId}.state`);
-
-    for (let attempt = 1; attempt <= MAX_SAVE_ATTEMPTS; attempt++) {
-      try {
-        await this.deps.bipc.sendSave();
-        const data = await waitForLocalSave(savePath);
-        const verified = verifyBizHawkSavestate(data);
-        if (!verified.ok) {
-          if (existsSync(savePath)) unlinkSync(savePath);
-          if (attempt === MAX_SAVE_ATTEMPTS) {
-            await nack(cmd.id, `invalid save (${verified.code}): ${verified.message}`);
-            return;
-          }
-          continue;
-        }
-
-        await this.deps.api.uploadSave(instanceId, data);
-        await ack(cmd.id);
-        return;
-      } catch (err) {
-        if (existsSync(savePath)) unlinkSync(savePath);
-        const retry = isSaveUploadRejected(err) && attempt < MAX_SAVE_ATTEMPTS;
-        if (retry) continue;
-        await nack(cmd.id, String(err));
-        return;
-      }
+    try {
+      await this.saveInstanceToHost(instanceId);
+      await ack(cmd.id);
+    } catch (err) {
+      await nack(cmd.id, String(err));
     }
   }
 }

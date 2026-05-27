@@ -142,7 +142,7 @@ export class SaveModeHandler implements GameModeHandler {
       validateNoDuplicateInstanceAssignments(state.players);
     });
 
-    this.server.sendSwapAll();
+    this.server.sendSwapAll({ skipSave: true });
   }
 
   getPlayer(player: string): Player {
@@ -222,11 +222,11 @@ export class SaveModeHandler implements GameModeHandler {
         console.error("save swap: timed out waiting for displaced player save");
         return;
       }
-      this.server.sendSwap(foundPlayer);
+      this.server.sendSwap(foundPlayer, { skipSave: true });
     } else {
       this.server.setInstanceFileState(foundInst.id, "none");
     }
-    this.server.sendSwap(p);
+    this.server.sendSwap(p, { skipSave: true });
   }
 
   private getRandomInstanceForPlayer(player: Player): {
@@ -301,7 +301,7 @@ export class SaveModeHandler implements GameModeHandler {
         validateNoDuplicateInstanceAssignments(st.players);
       });
 
-      this.server.sendSwap(player);
+      this.server.sendSwap(player, { skipSave: true });
       pending.delete(player.name);
       const chain = pick.otherPlayer?.name;
       if (!chain || !pending.has(chain)) break;
