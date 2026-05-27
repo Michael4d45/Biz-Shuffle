@@ -243,11 +243,17 @@ local lastValueByGame = {}
 local bestDomainCached = nil
 local lastRomName = nil
 local lastInstanceID = nil
--- Module-level settings storage (will be populated by server or on_settings_changed)
--- Note: Not local so it can be accessed/modified by server.lua's plugin_module._settings
-_settings = _settings or {}
--- Forward reference to exported table for syncing settings
+-- Settings copy updated by on_settings_changed; server also sets exported._settings.
+local _settings = {}
+-- Forward reference to exported table (server attaches _settings to this table)
 local exported = nil
+
+local function get_plugin_settings()
+    if exported and exported._settings then
+        return exported._settings
+    end
+    return _settings
+end
 
 local probe = {
     active = false,
@@ -401,21 +407,16 @@ end
 -- Parse enabled types from settings
 local function get_enabled_types()
     local enabled = {}
+    local settings = get_plugin_settings()
 
-    -- Try to sync _settings from exported table if not populated
-    -- (server sets plugin_module._settings after load, but might not call on_settings_changed)
-    if (not _settings or not _settings["enabled_types"]) and exported and exported._settings then
-        _settings = exported._settings
-    end
-
-    if not _settings or not _settings["enabled_types"] then
+    if not settings or not settings["enabled_types"] then
         -- Default to "door" for backward compatibility
         enabled["door"] = true
         console.log("Memory Tracker: No enabled_types setting, defaulting to door")
         return enabled
     end
 
-    local types_str = _settings["enabled_types"] or ""
+    local types_str = settings["enabled_types"] or ""
 
     -- Use csv_to_array helper function
     local types_array = csv_to_array(types_str)
@@ -436,7 +437,8 @@ local function do_send(last, val, cfg, type_name)
     console.log(("Memory Tracker: %s %s value changed: %s -> %s (%s)"):format(tostring(currentGame),
         tostring(type_name), tostring(last), tostring(val), tostring(cfg.desc or "")))
 
-    local command_type = _settings and _settings["command_type"] or "swap_me"
+    local settings = get_plugin_settings()
+    local command_type = settings["command_type"] or "swap"
 
     SendCommand(command_type, {
         ["message"] = ("Memory Tracker: %s %s value changed: %s -> %s (%s)"):format(tostring(currentGame),
@@ -516,9 +518,11 @@ local function on_init()
 end
 
 local function on_settings_changed(settings)
-    -- Update _settings with new settings
     if settings then
         _settings = settings
+        if exported then
+            exported._settings = settings
+        end
         -- Log enabled types summary
         local enabledTypes = get_enabled_types()
         local typesList = {}
@@ -534,12 +538,6 @@ end
 local function on_frame()
     frameCounter = frameCounter + 1
 
-    -- Sync _settings from exported table if needed (server sets plugin_module._settings after load)
-    if not _settings or not _settings["enabled_types"] then
-        if exported and exported._settings then
-            _settings = exported._settings
-        end
-    end
     local rom = gameinfo.getromname()
     if rom and (rom ~= lastRomName or InstanceID ~= lastInstanceID) then
         console.log("Memory Tracker: Game/Instance changed to " .. tostring(rom) .. " instance " .. tostring(InstanceID))

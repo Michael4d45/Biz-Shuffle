@@ -136,6 +136,13 @@ local function load_single_plugin(plugin_name, settings)
             plugin_module._initialized = false -- Track initialization state
             loaded_plugins[plugin_name] = plugin_module
 
+            if plugin_module.on_settings_changed then
+                local ok, err = pcall(plugin_module.on_settings_changed, settings)
+                if not ok then
+                    console.log("Plugin " .. plugin_name .. " on_settings_changed error: " .. tostring(err))
+                end
+            end
+
             -- Call on_init hook if available (only once per enablement)
             if plugin_module.on_init and not plugin_module._initialized then
                 local init_ok, init_err = pcall(plugin_module.on_init)
