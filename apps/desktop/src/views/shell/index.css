@@ -68,6 +68,26 @@ header h1 {
   color: #9aa0b0;
 }
 
+.deps-install-all-row {
+  margin-bottom: 0.65rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid #252a38;
+}
+
+.deps-install-all-btn {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.85rem;
+  border: none;
+  border-radius: 6px;
+  background: #2d8f5a;
+  color: #fff;
+  cursor: pointer;
+}
+
+.deps-install-all-btn:hover {
+  background: #36a366;
+}
+
 .deps-row {
   padding: 0.5rem 0;
 }

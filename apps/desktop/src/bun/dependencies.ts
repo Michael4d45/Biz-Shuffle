@@ -62,6 +62,19 @@ function logDependencyProgress(id: DependencyId, msg: string, pct?: number): voi
   desktopLog("bizshuffle-bun", `[${id}] ${msg}`);
 }
 
+function reportInstallProgress(
+  id: DependencyId,
+  msg: string,
+  pct: number,
+  log?: (msg: string) => void
+): void {
+  patchItem(id, { statusMessage: msg, progress: pct });
+  if (pct === 0 || pct >= 100) {
+    log?.(msg);
+    logDependencyProgress(id, msg, pct);
+  }
+}
+
 export async function installDependency(
   dataDir: string,
   id: DependencyId,
@@ -75,22 +88,11 @@ export async function installDependency(
   try {
     if (id === "bizhawk") {
       await upgradeBizHawk(dataDir, (msg, pct) => {
-        patchItem(id, {
-          statusMessage: msg,
-          progress: pct ?? currentState.items.find((i) => i.id === id)?.progress ?? 0,
-        });
-        if (pct == null || pct === 0 || pct >= 100) {
-          log?.(msg);
-          logDependencyProgress(id, msg, pct);
-        }
+        reportInstallProgress(id, msg, pct ?? 0, log);
       });
     } else if (id === "vcredist") {
       await installVCRedist((pct, msg) => {
-        patchItem(id, { statusMessage: msg, progress: pct });
-        if (pct === 0 || pct >= 100) {
-          log?.(msg);
-          logDependencyProgress(id, msg, pct);
-        }
+        reportInstallProgress(id, msg, pct, log);
       });
     }
     installing.delete(id);
@@ -103,4 +105,18 @@ export async function installDependency(
     refreshDependencies(dataDir);
     throw err;
   }
+}
+
+/** Install every dependency that still needs action, concurrently. */
+export async function installAllDependencies(
+  dataDir: string,
+  log?: (msg: string) => void
+): Promise<DependenciesState> {
+  const snap = getDependenciesSnapshot(dataDir);
+  const ids = snap.items.map((item) => item.id).filter((id) => !installing.has(id));
+  if (ids.length === 0) return currentState;
+  const results = await Promise.allSettled(ids.map((id) => installDependency(dataDir, id, log)));
+  const failed = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+  if (failed) throw failed.reason;
+  return currentState;
 }

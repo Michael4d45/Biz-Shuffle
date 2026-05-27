@@ -74,6 +74,10 @@ export type ShellRPCSchema = {
         params: { id: DependencyId };
         response: DependenciesState;
       };
+      installAllDependencies: {
+        params: Record<string, never>;
+        response: DependenciesState;
+      };
     };
     messages: {
       /** Webview → bun diagnostic lines (smoke tests, dev logging). */

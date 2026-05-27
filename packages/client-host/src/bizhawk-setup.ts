@@ -1,9 +1,15 @@
 import { mkdirSync, readdirSync, existsSync, rmSync, createWriteStream } from "node:fs";
-import { execSync } from "node:child_process";
+import { spawn, type SpawnOptions } from "node:child_process";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { ensureDefaults, loadConfig, saveConfig } from "./config.js";
+import {
+  BIZHAWK_DOWNLOAD_PROGRESS_CAP,
+  BIZHAWK_EXTRACT_ESTIMATE_MS,
+  mapByteDownloadProgress,
+  runEstimatedPhase,
+} from "./install-progress.js";
 import {
   BizHawkVersionError,
   SUPPORTED_BIZHAWK_VERSION,
@@ -129,30 +135,40 @@ async function downloadFile(
   reader.on("data", (chunk: Buffer | string) => {
     done += typeof chunk === "string" ? Buffer.byteLength(chunk) : chunk.length;
     if (total > 0 && onProgress) {
-      const pct = Math.min(99, Math.round((done / total) * 100));
-      if (pct !== lastPct) {
-        lastPct = pct;
-        onProgress(`Downloading BizHawk… ${pct}%`, pct);
+      const bytePct = Math.min(99, Math.round((done / total) * 100));
+      if (bytePct !== lastPct) {
+        lastPct = bytePct;
+        const overall = mapByteDownloadProgress(bytePct, BIZHAWK_DOWNLOAD_PROGRESS_CAP);
+        onProgress(`Downloading BizHawk… ${bytePct}%`, overall);
       }
     }
   });
   await pipeline(reader, out);
-  onProgress?.("Download complete", 100);
+  onProgress?.("Download complete", BIZHAWK_DOWNLOAD_PROGRESS_CAP);
+}
+
+function spawnAsync(command: string, args: string[], options: SpawnOptions = {}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, options);
+    child.on("error", reject);
+    child.on("close", (code: number | null) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${command} exited with code ${code ?? "unknown"}`));
+    });
+  });
 }
 
 async function extractZip(zipPath: string, destDir: string): Promise<void> {
   mkdirSync(destDir, { recursive: true });
   if (process.platform === "win32") {
     const cmd = `Expand-Archive -Path '${zipPath.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force`;
-    execSync(`powershell -NoProfile -Command "${cmd}"`, {
+    await spawnAsync("powershell", ["-NoProfile", "-Command", cmd], {
       stdio: "inherit",
       windowsHide: true,
     });
     return;
   }
-  execSync(`unzip -o -q ${JSON.stringify(zipPath)} -d ${JSON.stringify(destDir)}`, {
-    stdio: "inherit",
-  });
+  await spawnAsync("unzip", ["-o", "-q", zipPath, "-d", destDir], { stdio: "inherit" });
 }
 
 /** Download and extract BizHawk into installDir. */
@@ -169,8 +185,13 @@ export async function installBizHawk(
   report("Downloading BizHawk…", 0);
   await downloadFile(url, archivePath, report);
 
-  report("Extracting BizHawk…", undefined);
-  await extractZip(archivePath, installDir);
+  await runEstimatedPhase(
+    BIZHAWK_EXTRACT_ESTIMATE_MS,
+    BIZHAWK_DOWNLOAD_PROGRESS_CAP,
+    99,
+    (pct) => report("Extracting BizHawk…", pct),
+    () => extractZip(archivePath, installDir)
+  );
   try {
     rmSync(archivePath, { force: true });
   } catch {
@@ -181,7 +202,7 @@ export async function installBizHawk(
   if (!exe) {
     throw new Error(`BizHawk installed but EmuHawk.exe not found under ${installDir}`);
   }
-  report(`BizHawk ${version} installation complete`);
+  report(`BizHawk ${version} installation complete`, 100);
   return exe;
 }
 

@@ -211,6 +211,12 @@ function depsPanelHtml(): string {
     return "";
   }
 
+  const anyInstalling = depsState.items.some((i) => i.installing);
+  const installAll =
+    depsState.items.length >= 2 && !anyInstalling
+      ? `<div class="deps-install-all-row"><button type="button" class="deps-install-all-btn" id="deps-install-all">Install all</button></div>`
+      : "";
+
   const rows = depsState.items
     .map((item) => {
       const statusClass =
@@ -236,7 +242,7 @@ function depsPanelHtml(): string {
       ? `<p class="deps-hint">Install or update the items above before joining.</p>`
       : "";
 
-  return `<section class="deps-panel" id="deps-panel">${rows}${blocked}</section>`;
+  return `<section class="deps-panel" id="deps-panel">${installAll}${rows}${blocked}</section>`;
 }
 
 function versionLabelText(): string {
@@ -324,6 +330,17 @@ declare global {
 window.__bizshuffleFooterDiag = logFooterDiagnostics;
 
 function wireDepsPanel(): void {
+  document.getElementById("deps-install-all")?.addEventListener("click", () => {
+    void (async () => {
+      try {
+        depsState = await rpc.request.installAllDependencies({});
+        syncDepsUi();
+      } catch (e) {
+        setStatus(String(e));
+      }
+    })();
+  });
+
   document.querySelectorAll(".deps-action-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = (btn as HTMLButtonElement).dataset.depId as "bizhawk" | "vcredist";

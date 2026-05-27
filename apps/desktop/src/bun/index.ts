@@ -15,6 +15,7 @@ import {
 } from "./app-updates.js";
 import {
   initDependencies,
+  installAllDependencies,
   installDependency,
   playBlockedReason,
   refreshDependencies,
@@ -462,6 +463,7 @@ function defineShellRpc() {
           const { id } = params as ShellRPCSchema["bun"]["requests"]["installDependency"]["params"];
           return installDependency(dataDir(), id, depProgress);
         },
+        installAllDependencies: async () => installAllDependencies(dataDir(), depProgress),
       },
       messages: {
         diag: (payload: unknown) => {

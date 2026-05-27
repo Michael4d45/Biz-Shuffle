@@ -1,9 +1,15 @@
 import { createWriteStream, unlinkSync } from "node:fs";
-import { execSync, spawnSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
+import {
+  VCREDIST_DOWNLOAD_PROGRESS_CAP,
+  VCREDIST_INSTALL_ESTIMATE_MS,
+  mapByteDownloadProgress,
+  runEstimatedPhase,
+} from "./install-progress.js";
 
 /** MSVC 2015–2022 x64 redistributable (BizHawk on Windows). */
 export const VC_REDIST_X64_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe";
@@ -63,15 +69,26 @@ async function downloadFile(
   reader.on("data", (chunk: Buffer | string) => {
     done += typeof chunk === "string" ? Buffer.byteLength(chunk) : chunk.length;
     if (total > 0 && onProgress) {
-      const pct = Math.min(99, Math.round((done / total) * 100));
-      if (pct !== lastPct) {
-        lastPct = pct;
-        onProgress(pct, "Downloading Visual C++ runtime…");
+      const bytePct = Math.min(99, Math.round((done / total) * 100));
+      if (bytePct !== lastPct) {
+        lastPct = bytePct;
+        onProgress(
+          mapByteDownloadProgress(bytePct, VCREDIST_DOWNLOAD_PROGRESS_CAP),
+          "Downloading Visual C++ runtime…"
+        );
       }
     }
   });
   await pipeline(reader, out);
-  onProgress?.(100, "Download complete");
+  onProgress?.(VCREDIST_DOWNLOAD_PROGRESS_CAP, "Download complete");
+}
+
+function runInstaller(exePath: string, args: string[]): Promise<number | null> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(exePath, args, { windowsHide: true, stdio: "ignore" });
+    child.on("error", reject);
+    child.on("close", (code) => resolve(code));
+  });
 }
 
 /** Download and install the MSVC x64 redistributable (Windows only). */
@@ -85,20 +102,25 @@ export async function installVCRedist(
   onProgress?.(0, "Downloading Visual C++ runtime…");
   await downloadFile(VC_REDIST_X64_URL, dest, onProgress);
 
-  onProgress?.(100, "Installing Visual C++ runtime…");
-  const result = spawnSync(dest, ["/install", "/quiet", "/norestart"], {
-    windowsHide: true,
-    stdio: "ignore",
-  });
+  let exitCode: number | null = null;
+  await runEstimatedPhase(
+    VCREDIST_INSTALL_ESTIMATE_MS,
+    VCREDIST_DOWNLOAD_PROGRESS_CAP,
+    99,
+    (pct) => onProgress?.(pct, "Installing Visual C++ runtime…"),
+    async () => {
+      exitCode = await runInstaller(dest, ["/install", "/quiet", "/norestart"]);
+    }
+  );
   try {
     unlinkSync(dest);
   } catch {
     /* ignore */
   }
 
-  if (result.status !== 0 && result.status !== 1638) {
+  if (exitCode !== 0 && exitCode !== 1638) {
     // 1638 = newer version already installed
-    throw new Error(`Visual C++ runtime installer exited with code ${result.status ?? "unknown"}`);
+    throw new Error(`Visual C++ runtime installer exited with code ${exitCode ?? "unknown"}`);
   }
 
   if (!isVCRedistInstalled()) {
