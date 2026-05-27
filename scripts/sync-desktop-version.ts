@@ -10,6 +10,10 @@ const root = resolve(import.meta.dir, "..");
 const desktopDir = join(root, "apps/desktop");
 const pkgPath = join(desktopDir, "package.json");
 const configPath = join(desktopDir, "electrobun.config.ts");
+const lockPath = join(root, "bun.lock");
+
+/** Workspace entry version under `workspaces["apps/desktop"]` in bun.lock. */
+const LOCK_DESKTOP_VERSION_RE = /("apps\/desktop":\s*\{[\s\S]*?\n\s*"version":\s*)"([^"]*)"/;
 
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[\w.-]+)?$/;
 /** Release tags pushed to CI/CD (e.g. v0.0.10). Branch names like `main` are not tags. */
@@ -23,14 +27,37 @@ export function isReleaseTagRef(ref: string): boolean {
   return RELEASE_TAG_RE.test(ref.trim());
 }
 
-export function readDesktopVersions(): { packageJson: string; electrobunConfig: string } {
+export function readLockfileDesktopVersion(lockText = readFileSync(lockPath, "utf8")): string {
+  const match = lockText.match(LOCK_DESKTOP_VERSION_RE);
+  if (!match?.[2]) {
+    throw new Error(`Could not read apps/desktop version from ${lockPath}`);
+  }
+  return match[2];
+}
+
+export function patchLockfileDesktopVersion(lockText: string, version: string): string {
+  if (!LOCK_DESKTOP_VERSION_RE.test(lockText)) {
+    throw new Error("Could not find apps/desktop version in bun.lock");
+  }
+  return lockText.replace(LOCK_DESKTOP_VERSION_RE, `$1"${version}"`);
+}
+
+export function readDesktopVersions(): {
+  packageJson: string;
+  electrobunConfig: string;
+  lockfile: string;
+} {
   const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version: string };
   const configText = readFileSync(configPath, "utf8");
   const match = configText.match(/version:\s*"([^"]*)"/);
   if (!match?.[1]) {
     throw new Error(`Could not read app.version from ${configPath}`);
   }
-  return { packageJson: pkg.version, electrobunConfig: match[1] };
+  return {
+    packageJson: pkg.version,
+    electrobunConfig: match[1],
+    lockfile: readLockfileDesktopVersion(),
+  };
 }
 
 export function syncDesktopVersion(versionInput: string): string {
@@ -40,20 +67,33 @@ export function syncDesktopVersion(versionInput: string): string {
   }
 
   const current = readDesktopVersions();
-  if (current.packageJson === version && current.electrobunConfig === version) {
+  if (
+    current.packageJson === version &&
+    current.electrobunConfig === version &&
+    current.lockfile === version
+  ) {
     return version;
   }
 
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version: string };
-  pkg.version = version;
-  writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
-
-  const configText = readFileSync(configPath, "utf8");
-  const nextConfig = configText.replace(/version:\s*"[^"]*"/, `version: "${version}"`);
-  if (nextConfig === configText) {
-    throw new Error(`Could not update app.version in ${configPath}`);
+  if (current.packageJson !== version) {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version: string };
+    pkg.version = version;
+    writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
   }
-  writeFileSync(configPath, nextConfig);
+
+  if (current.electrobunConfig !== version) {
+    const configText = readFileSync(configPath, "utf8");
+    const nextConfig = configText.replace(/version:\s*"[^"]*"/, `version: "${version}"`);
+    if (nextConfig === configText) {
+      throw new Error(`Could not update app.version in ${configPath}`);
+    }
+    writeFileSync(configPath, nextConfig);
+  }
+
+  if (current.lockfile !== version) {
+    const lockText = readFileSync(lockPath, "utf8");
+    writeFileSync(lockPath, patchLockfileDesktopVersion(lockText, version));
+  }
 
   return version;
 }

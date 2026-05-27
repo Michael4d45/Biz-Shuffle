@@ -94,7 +94,7 @@ jobs:
           git fetch origin main
           git checkout main
           bun run scripts/sync-desktop-version.ts
-          git add apps/desktop/package.json apps/desktop/electrobun.config.ts
+          git add apps/desktop/package.json apps/desktop/electrobun.config.ts bun.lock
           if git diff --staged --quiet; then
             echo "main already has desktop version ${{ github.ref_name }}"
           else

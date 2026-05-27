@@ -34,7 +34,7 @@
     },
     "apps/desktop": {
       "name": "@bizshuffle-bun/desktop",
-      "version": "0.0.14",
+      "version": "0.0.16",
       "dependencies": {
         "@bizshuffle-bun/client-host": "workspace:*",
         "@bizshuffle-bun/protocol": "workspace:*",
