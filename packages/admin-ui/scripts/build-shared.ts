@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { transformAsync } from "@babel/core";
+import type { BunPlugin } from "bun";
 
 const pkgRoot = resolve(import.meta.dir, "..");
 const defaultOutDir = resolve(pkgRoot, "../server-host/priv/static");

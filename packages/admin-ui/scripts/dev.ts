@@ -50,17 +50,20 @@ function staticFile(pathname: string): Bun.BunFile {
   return Bun.file(join(outDir, rel));
 }
 
-type AdminWsData = { backend: WebSocket | null; pending: (string | ArrayBuffer | Uint8Array)[] };
+type AdminWsData = {
+  backend: WebSocket | null;
+  pending: (string | Buffer<ArrayBuffer>)[];
+};
 
 console.log(`[admin-ui] http://127.0.0.1:${port}  →  API ${apiOrigin}`);
 
-Bun.serve({
+Bun.serve<AdminWsData>({
   port,
   hostname: "127.0.0.1",
   async fetch(req, server) {
     const url = new URL(req.url);
     if (url.pathname === "/ws") {
-      if (server.upgrade(req, { data: { backend: null, pending: [] } satisfies AdminWsData }))
+      if (server.upgrade(req, { data: { backend: null, pending: [] } }))
         return;
       return new Response("WebSocket upgrade failed", { status: 500 });
     }
