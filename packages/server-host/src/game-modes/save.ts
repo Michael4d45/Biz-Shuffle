@@ -277,6 +277,13 @@ export class SaveModeHandler implements GameModeHandler {
       const pick = this.getRandomInstanceForPlayer(player);
       if (!pick) break;
 
+      if (pick.otherPlayer?.connected && pick.otherPlayer.instance_id) {
+        this.server.setInstanceFileState(
+          pick.otherPlayer.instance_id,
+          "pending",
+          pick.otherPlayer.name
+        );
+      }
       this.server.setPlayerFilePending(player);
       this.server.requestPendingSaves();
       if (await this.waitForPendingSaves()) {

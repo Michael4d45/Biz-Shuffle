@@ -15,7 +15,7 @@ export {
   wsUrlFromHttpBase,
 } from "./config.js";
 export type { ClientConfigMap } from "./config.js";
-export { ensureFile, downloadPluginFiles } from "./downloads.js";
+export { ensureFile, ensureSaveFile, downloadPluginFiles } from "./downloads.js";
 export {
   ensureBizHawkReady,
   getBizHawkStatus,

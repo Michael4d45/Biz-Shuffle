@@ -74,7 +74,6 @@ export async function ensureSaveFile(
   fetchFn: typeof fetch = fetch
 ): Promise<void> {
   const dest = join(dataDir, "saves", `${instanceId}.state`);
-  if (pathExists(dest)) return;
   const url = `${baseUrl.replace(/\/$/, "")}/save/${instanceId}.state`;
   const res = await fetchFn(url);
   if (res.status === 404) return;
