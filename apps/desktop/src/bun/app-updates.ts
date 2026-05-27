@@ -87,7 +87,7 @@ export function startAppUpdateStatusListener(): void {
     if (entry.status === "download-progress" && progress != null) {
       pushState({
         downloading: true,
-        status: `Downloading… ${Math.round(progress * 100)}%`,
+        status: `Downloading… ${Math.round(progress)}%`,
       });
       return;
     }
