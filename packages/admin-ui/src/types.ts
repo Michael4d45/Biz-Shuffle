@@ -1,6 +1,5 @@
 export type {
   Command,
-  CommandName,
   GameEntry,
   GameSwapInstance,
   Player,

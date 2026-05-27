@@ -6,7 +6,7 @@ Cursor rules live in [`.cursor/rules/`](.cursor/rules/). Project skills live in 
 
 1. **Product & protocol** — [`docs/SPEC.md`](docs/SPEC.md)
 2. **Contracts** — [`docs/contracts/`](docs/contracts/)
-3. **Quality gates** — `bun run typecheck && bun run lint && bun run format:check && bun test`
+3. **Quality gates** — `bun run typecheck && bun run lint && bun run knip && bun run format:check && bun test`
 
 ## Skills (invoke when relevant)
 

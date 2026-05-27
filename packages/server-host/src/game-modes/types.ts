@@ -1,5 +1,4 @@
-import type { Player, MutableServerState } from "@bizshuffle-bun/protocol";
-import type { BizShuffleServer } from "../server.js";
+import type { Player } from "@bizshuffle-bun/protocol";
 
 export interface GameModeHandler {
   handleSwap(): Promise<void>;
@@ -8,7 +7,3 @@ export interface GameModeHandler {
   handlePlayerSwap(player: string, game: string, instanceId: string): Promise<void>;
   handleRandomSwapForPlayer(playerName: string): Promise<void>;
 }
-
-export type StateMutator = (st: MutableServerState) => void;
-
-export type ServerRef = BizShuffleServer;

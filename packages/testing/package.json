@@ -13,7 +13,6 @@
   "dependencies": {
     "@bizshuffle-bun/savestate": "workspace:*",
     "@bizshuffle-bun/client-host": "workspace:*",
-    "@bizshuffle-bun/domain": "workspace:*",
     "@bizshuffle-bun/protocol": "workspace:*",
     "@bizshuffle-bun/server-host": "workspace:*",
     "ws": "^8.18.0"

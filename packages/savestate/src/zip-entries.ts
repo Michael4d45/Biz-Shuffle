@@ -32,7 +32,7 @@ function longestCommonPrefix(paths: string[]): string {
 }
 
 /** Mirrors BizHawk ZipStateLoader entry naming. */
-export function normalizeZipEntries(files: Record<string, Uint8Array>): Map<string, ZipLump> {
+function normalizeZipEntries(files: Record<string, Uint8Array>): Map<string, ZipLump> {
   const paths = Object.keys(files).filter((p) => !p.endsWith("/"));
   const commonPrefix = longestCommonPrefix(paths);
   const result = new Map<string, ZipLump>();

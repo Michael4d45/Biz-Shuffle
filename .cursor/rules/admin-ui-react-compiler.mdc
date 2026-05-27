@@ -38,4 +38,4 @@ const value = compute(state);
 
 - No imports from `@bizshuffle-bun/server-host` (see `admin-isolation` arch test).
 - Match existing patterns: `api.ts` helpers, card components, hooks under `src/hooks/`.
-- After changes: `bun run typecheck`, `bun run lint`, `bun run build:admin`.
+- After changes: `bun run typecheck`, `bun run lint`, `bun run knip`, `bun run build:admin`.

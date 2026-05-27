@@ -29,7 +29,7 @@ export async function postForm(path: string, form: FormData): Promise<Response> 
   return fetch(path, { method: "POST", body: form });
 }
 
-export async function del(path: string): Promise<Response> {
+async function del(path: string): Promise<Response> {
   return fetch(path, { method: "DELETE" });
 }
 
@@ -44,23 +44,6 @@ export type GamesPayload = {
   main_games?: GameEntry[];
   game_instances?: GameSwapInstance[];
 };
-
-export type GamesResponse = {
-  games: string[];
-  main_games: GameEntry[];
-  game_instances: GameSwapInstance[];
-};
-
-export async function getInterval(): Promise<{
-  min_interval_secs: number;
-  max_interval_secs: number;
-}> {
-  return fetchJson("/api/interval");
-}
-
-export async function getGames(): Promise<GamesResponse> {
-  return fetchJson("/api/games");
-}
 
 export async function postGames(payload: GamesPayload): Promise<Response> {
   return post("/api/games", payload);

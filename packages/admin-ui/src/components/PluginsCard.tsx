@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AdminTrigger } from "../adminActions.js";
 import { fetchJson } from "../api.js";
 import type { Plugin } from "../types.js";
@@ -26,6 +26,10 @@ export function PluginsCard({ trigger, pushLog }: Props) {
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [editName, setEditName] = useState<string | null>(null);
+  const pushLogRef = useRef(pushLog);
+  useEffect(() => {
+    pushLogRef.current = pushLog;
+  });
 
   async function loadPlugins() {
     setLoading(true);
@@ -46,7 +50,7 @@ export function PluginsCard({ trigger, pushLog }: Props) {
         if (!cancelled) setPlugins(next);
       })
       .catch((e) => {
-        if (!cancelled) pushLog(String(e));
+        if (!cancelled) pushLogRef.current(String(e));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

@@ -11,10 +11,6 @@ export class SaveUploadRejectedError extends Error {
   }
 }
 
-export function isSaveUploadRejected(err: unknown): err is SaveUploadRejectedError {
-  return err instanceof SaveUploadRejectedError;
-}
-
 export function parseSaveUploadRejected(
   status: number,
   body: string

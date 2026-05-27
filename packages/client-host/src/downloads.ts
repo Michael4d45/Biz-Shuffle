@@ -1,4 +1,3 @@
-import { statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ROM_DOWNLOAD_RETRIES, romRetryDelayMs } from "@bizshuffle-bun/protocol";
 import { ensureDirSync, pathExists, writeBytesAtomic } from "./bun-io.js";
@@ -82,32 +81,4 @@ export async function ensureSaveFile(
   if (!res.ok) throw new Error(`save download failed: ${res.status}`);
   ensureDirSync(dirname(dest));
   await writeBytesAtomic(dest, Buffer.from(await res.arrayBuffer()));
-}
-
-export function waitForFileStable(path: string, timeoutMs = 2000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  let lastSize = -1;
-  let lastMtime = -1;
-  return new Promise((resolve, reject) => {
-    const tick = () => {
-      try {
-        const st = statSync(path);
-        if (st.size === lastSize && st.mtimeMs === lastMtime) {
-          resolve();
-          return;
-        }
-        lastSize = st.size;
-        lastMtime = st.mtimeMs;
-      } catch (err) {
-        reject(err);
-        return;
-      }
-      if (Date.now() > deadline) {
-        resolve();
-        return;
-      }
-      setTimeout(tick, 50);
-    };
-    tick();
-  });
 }

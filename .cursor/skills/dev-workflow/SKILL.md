@@ -12,6 +12,7 @@ bun install
 bun run build:admin    # required before server/desktop admin UI
 bun run typecheck
 bun run lint
+bun run knip
 bun run format:check
 bun test
 ```
@@ -53,4 +54,4 @@ git tag v0.x.x && git push origin v0.x.x   # triggers release workflow
 
 ## CI (`.github/workflows/ci.yml`)
 
-Order: install → typecheck → lint → format:check → build:admin → bun test
+Order: install → typecheck → lint → knip → format:check → build:admin → bun test

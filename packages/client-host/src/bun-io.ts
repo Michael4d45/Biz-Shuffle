@@ -16,11 +16,6 @@ export async function writeBytesAtomic(path: string, data: Buffer | Uint8Array):
   renameSync(tmp, path);
 }
 
-export async function writeText(path: string, contents: string): Promise<void> {
-  ensureDirSync(dirname(path));
-  await Bun.write(path, contents);
-}
-
 export async function readText(path: string): Promise<string> {
   return Bun.file(path).text();
 }

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreExportsUsedInFile": true,
+  "ignoreBinaries": ["pwsh"],
+  "ignoreDependencies": ["react-compiler-runtime"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.test.ts"],
+      "project": ["scripts/**/*.ts"],
+      "ignoreDependencies": ["electrobun"]
+    },
+    "apps/desktop": {
+      "entry": ["src/bun/index.ts", "src/views/shell/index.ts", "scripts/**/*.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.ts"]
+    },
+    "packages/admin-ui": {
+      "entry": ["src/main.tsx", "scripts/**/*.ts"],
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
+      "ignoreDependencies": [
+        "@babel/preset-react",
+        "@babel/preset-typescript",
+        "@tailwindcss/cli",
+        "babel-plugin-react-compiler",
+        "tailwindcss"
+      ]
+    },
+    "packages/testing": {
+      "entry": ["src/**/*.ts"],
+      "project": ["src/**/*.ts"]
+    }
+  }
+}

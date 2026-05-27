@@ -25,11 +25,19 @@ Apps: `apps/server` (headless), `apps/desktop` (Electrobun), `apps/client-cli`.
 ```bash
 bun run typecheck
 bun run lint
+bun run knip
 bun run format:check
 bun test
 ```
 
 CI runs all of the above plus `build:admin`.
+
+## Dead code (Knip)
+
+- Config: `knip.json` at repo root (workspace entry points for apps, admin build scripts, tests).
+- Run `bun run knip` to report unused files, dependencies, and exports.
+- `ignoreExportsUsedInFile` is enabled — exports used only in the same file are not reported.
+- Build-only deps (Babel/Tailwind in admin-ui, `react-compiler-runtime`) are ignored; do not remove without checking `packages/admin-ui/scripts/build-shared.ts`.
 
 ## Change discipline
 

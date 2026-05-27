@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getPluginDetails, getPluginSettings, postPluginSettings } from "../api.js";
 import type { Plugin } from "../types.js";
 import { Modal } from "./Modal.js";
@@ -31,6 +31,10 @@ export function PluginSettingsModal({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
+  const onLogRef = useRef(onLog);
+  useEffect(() => {
+    onLogRef.current = onLog;
+  });
 
   useEffect(() => {
     if (!open || !pluginName) {
@@ -60,7 +64,7 @@ export function PluginSettingsModal({
         if (!cancelled) {
           const msg = e instanceof Error ? e.message : String(e);
           setLoadError(msg);
-          onLog(msg);
+          onLogRef.current(msg);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -70,7 +74,6 @@ export function PluginSettingsModal({
     return () => {
       cancelled = true;
     };
-    // onLog (pushLog) changes every parent render; do not list it — that cancelled loads forever.
   }, [open, pluginName]);
 
   async function persist(closeOnSuccess: boolean, reloadAfter = false): Promise<boolean> {

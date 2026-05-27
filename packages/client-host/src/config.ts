@@ -29,11 +29,6 @@ export function ensureDefaults(cfg: ClientConfigMap): void {
   if (!cfg.auto_open_bizhawk) cfg.auto_open_bizhawk = "true";
 }
 
-export function getBool(cfg: ClientConfigMap, key: string): boolean {
-  const v = cfg[key];
-  return v === "true" || v === "1" || v === "yes";
-}
-
 function normalizeServer(cfg: ClientConfigMap): void {
   const s = cfg.server;
   if (!s) return;
