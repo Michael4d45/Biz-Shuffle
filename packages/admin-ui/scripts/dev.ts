@@ -63,8 +63,7 @@ Bun.serve<AdminWsData>({
   async fetch(req, server) {
     const url = new URL(req.url);
     if (url.pathname === "/ws") {
-      if (server.upgrade(req, { data: { backend: null, pending: [] } }))
-        return;
+      if (server.upgrade(req, { data: { backend: null, pending: [] } })) return;
       return new Response("WebSocket upgrade failed", { status: 500 });
     }
     if (
