@@ -17,12 +17,13 @@ import { ActionRow, Badge, Button, EmptyState, FieldLabel, Input, Select, cn } f
 
 type Props = {
   state: ServerState | null;
+  expanded?: boolean;
   trigger: AdminTrigger;
   pushLog: (msg: string) => void;
   refreshState: () => Promise<ServerState | null>;
 };
 
-export function SaveInstancesCard({ state, trigger, pushLog, refreshState }: Props) {
+export function SaveInstancesCard({ state, expanded = false, trigger, pushLog, refreshState }: Props) {
   const instances = state?.game_instances ?? [];
   const mainFiles = (state?.main_games ?? []).map((g) => g.file);
   const playersByInstance = instancePlayerMap(state);
@@ -79,7 +80,12 @@ export function SaveInstancesCard({ state, trigger, pushLog, refreshState }: Pro
 
   return (
     <div className="space-y-3">
-      <div className="max-h-72 space-y-2 overflow-y-auto scrollbar-thin pr-1">
+      <div
+        className={cn(
+          "space-y-2",
+          !expanded && "max-h-72 overflow-y-auto scrollbar-thin pr-1"
+        )}
+      >
         {instances.length === 0 ? (
           <EmptyState>No save instances. Add one below.</EmptyState>
         ) : (

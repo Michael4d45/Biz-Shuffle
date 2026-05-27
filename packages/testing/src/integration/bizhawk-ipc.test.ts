@@ -47,5 +47,22 @@ describe("BizhawkIpc + FakeLuaPeer integration", () => {
 
     await bipc.sendPause();
     expect(peer.receivedCommands).toContain("PAUSE");
+
+    await bipc.sendMessage("hello", {
+      duration: 5,
+      x: 76,
+      y: 10,
+      fontsize: 40,
+      fg: "#ff0000",
+      bg: "#000000",
+    });
+    expect(peer.lastCmdParts[2]).toBe("MSG");
+    expect(peer.lastCmdParts[3]).toBe("hello");
+    expect(peer.lastCmdParts[4]).toBe("5");
+    expect(peer.lastCmdParts[5]).toBe("76");
+    expect(peer.lastCmdParts[6]).toBe("10");
+    expect(peer.lastCmdParts[7]).toBe("40");
+    expect(peer.lastCmdParts[8]).toBe("#ff0000");
+    expect(peer.lastCmdParts[9]).toBe("#000000");
   }, 15_000);
 });

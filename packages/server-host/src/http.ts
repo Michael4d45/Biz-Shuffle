@@ -27,6 +27,17 @@ import {
 
 const UPLOAD_LIMIT = 32 * 1024 * 1024;
 
+function parseMessageStyleFields(b: Record<string, unknown>) {
+  return {
+    duration: (b.duration as number | undefined) ?? 3,
+    x: (b.x as number | undefined) ?? 10,
+    y: (b.y as number | undefined) ?? 10,
+    fontsize: (b.fontsize as number | undefined) ?? 12,
+    fg: (b.fg as string | undefined) ?? "#FFFFFF",
+    bg: (b.bg as string | undefined) ?? "#000000",
+  };
+}
+
 export async function handleHttpRequest(server: BizShuffleServer, req: Request): Promise<Response> {
   try {
     return await route(server, req);
@@ -471,15 +482,7 @@ async function route(server: BizShuffleServer, req: Request): Promise<Response> 
       server.sendToPlayer(player, {
         cmd: "message",
         id: `message-${Date.now()}`,
-        payload: {
-          message,
-          duration: (b.duration as number | undefined) ?? 3,
-          x: (b.x as number | undefined) ?? 10,
-          y: (b.y as number | undefined) ?? 10,
-          fontsize: (b.fontsize as number | undefined) ?? 12,
-          fg: (b.fg as string | undefined) ?? "#FFFFFF",
-          bg: (b.bg as string | undefined) ?? "#000000",
-        },
+        payload: { message, ...parseMessageStyleFields(b) },
       });
       return json({ result: "ok" });
     } catch (err) {
@@ -494,15 +497,7 @@ async function route(server: BizShuffleServer, req: Request): Promise<Response> 
     server.broadcastToPlayers({
       cmd: "message",
       id: `message-all-${Date.now()}`,
-      payload: {
-        message,
-        duration: 3,
-        x: 10,
-        y: 10,
-        fontsize: 12,
-        fg: "#FFFFFF",
-        bg: "#000000",
-      },
+      payload: { message, ...parseMessageStyleFields(b) },
     });
     return json({ result: "ok" });
   }

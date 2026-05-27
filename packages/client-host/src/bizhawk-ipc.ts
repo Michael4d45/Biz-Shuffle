@@ -7,6 +7,24 @@ const MSG_ACK = "ACK";
 const MSG_NACK = "NACK";
 const MSG_HELLO = "HELLO";
 
+export type BizhawkMessageStyle = {
+  duration?: number;
+  x?: number;
+  y?: number;
+  fontsize?: number;
+  fg?: string;
+  bg?: string;
+};
+
+const DEFAULT_MESSAGE_STYLE: Required<BizhawkMessageStyle> = {
+  duration: 3,
+  x: 10,
+  y: 10,
+  fontsize: 12,
+  fg: "#FFFFFF",
+  bg: "#000000",
+};
+
 export interface BizhawkIpcOptions {
   host?: string;
   /** Fixed port to dial (Lua listens here). */
@@ -144,8 +162,18 @@ export class BizhawkIpc {
     await this.sendCommand(["SWAP", game, instanceId]);
   }
 
-  async sendMessage(text: string): Promise<void> {
-    await this.sendCommand(["MSG", text, "3.0", "10", "10", "12", "#FFFFFF", "#000000"]);
+  async sendMessage(text: string, style: BizhawkMessageStyle = {}): Promise<void> {
+    const s = { ...DEFAULT_MESSAGE_STYLE, ...style };
+    await this.sendCommand([
+      "MSG",
+      text,
+      String(s.duration),
+      String(s.x),
+      String(s.y),
+      String(s.fontsize),
+      s.fg,
+      s.bg,
+    ]);
   }
 
   async sendSave(instanceId?: string): Promise<void> {

@@ -25,6 +25,8 @@ export class FakeLuaPeer {
   private socket: Socket | null = null;
   private buffer = "";
   private readonly commands: string[] = [];
+  /** Full `CMD|…` line parts from the last received command. */
+  lastCmdParts: string[] = [];
   readonly port: number;
   instanceId: string;
 
@@ -103,6 +105,7 @@ export class FakeLuaPeer {
     const id = parts[1]!;
     const cmd = parts[2]!;
     this.commands.push(cmd);
+    this.lastCmdParts = parts;
 
     if (cmd === "SWAP" && parts.length >= 5) {
       this.instanceId = parts[4] || parts[3] || this.instanceId;

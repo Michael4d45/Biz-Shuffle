@@ -211,14 +211,29 @@ export class Controller {
     ack: (id: string) => Promise<void>,
     nack: (id: string, reason: string) => Promise<void>
   ): Promise<void> {
-    const p = (cmd.payload ?? {}) as { message?: string };
+    const p = (cmd.payload ?? {}) as {
+      message?: string;
+      duration?: number;
+      x?: number;
+      y?: number;
+      fontsize?: number;
+      fg?: string;
+      bg?: string;
+    };
     if (!p.message) {
       await nack(cmd.id, "missing message");
       return;
     }
     if (this.deps.bipc?.isReady()) {
       try {
-        await this.deps.bipc.sendMessage(p.message);
+        await this.deps.bipc.sendMessage(p.message, {
+          duration: p.duration,
+          x: p.x,
+          y: p.y,
+          fontsize: p.fontsize,
+          fg: p.fg,
+          bg: p.bg,
+        });
         await ack(cmd.id);
       } catch (err) {
         await nack(cmd.id, String(err));

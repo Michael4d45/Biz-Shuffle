@@ -84,8 +84,8 @@ export function GamesCard({ state, trigger, pushLog, refreshState }: Props) {
 
         <div
           className={cn(
-            "mt-4 space-y-2 overflow-y-auto scrollbar-thin pr-1",
-            expanded ? "max-h-[32rem]" : "max-h-72"
+            "mt-4 space-y-2",
+            !expanded && "max-h-72 overflow-y-auto scrollbar-thin pr-1"
           )}
         >
           {isSync ? (
@@ -142,6 +142,7 @@ export function GamesCard({ state, trigger, pushLog, refreshState }: Props) {
           ) : (
             <SaveInstancesCard
               state={state}
+              expanded={expanded}
               trigger={trigger}
               pushLog={pushLog}
               refreshState={refreshState}
