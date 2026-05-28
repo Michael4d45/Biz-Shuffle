@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchShareUrls, type ShareUrls } from "../api.js";
+import { copyText } from "../copyText.js";
 import { useToast } from "./Toast.js";
 import { Button, cn, FieldLabel } from "./ui.js";
 
@@ -96,12 +97,9 @@ export function ShareAddresses() {
   }, []);
 
   async function copyUrl(url: string) {
-    try {
-      await navigator.clipboard.writeText(url);
-      showToast("Copied to clipboard");
-    } catch {
-      showToast("Could not copy", "err");
-    }
+    const ok = await copyText(url);
+    if (ok) showToast("Copied to clipboard");
+    else showToast("Could not copy", "err");
   }
 
   const lanUrls = urls?.lan ?? [];
