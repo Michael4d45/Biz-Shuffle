@@ -47,6 +47,9 @@ export class DiscoveryBroadcaster {
     const [host, portStr] = this.config.multicast_address.split(":");
     const port = Number(portStr ?? 1900);
     const socket = createSocket({ type: "udp4", reuseAddr: true });
+    socket.on("error", (err) => {
+      console.warn(`[discovery] UDP error (non-fatal): ${err.message}`);
+    });
 
     let localAddress = this.serverHost;
     for (const iface of Object.values(networkInterfaces())) {
@@ -74,15 +77,24 @@ export class DiscoveryBroadcaster {
 
   private async broadcast(): Promise<void> {
     if (!this.running || !this.socket) return;
-    const msg = newDiscoveryMessage(this.serverHost, this.serverPort, this.serverName);
-    const data = Buffer.from(JSON.stringify(msg));
-    const { host, port } = this.multicastTarget;
-    await new Promise<void>((resolve) => {
-      this.socket!.send(data, port, host, () => resolve());
-    });
-    await new Promise<void>((resolve) => {
-      createSocket("udp4").send(data, 1901, "127.0.0.1", () => resolve());
-    });
+    try {
+      const msg = newDiscoveryMessage(this.serverHost, this.serverPort, this.serverName);
+      const data = Buffer.from(JSON.stringify(msg));
+      const { host, port } = this.multicastTarget;
+      await new Promise<void>((resolve) => {
+        this.socket!.send(data, port, host, () => resolve());
+      });
+      await new Promise<void>((resolve, reject) => {
+        const probe = createSocket("udp4");
+        probe.on("error", () => resolve());
+        probe.send(data, 1901, "127.0.0.1", () => {
+          probe.close();
+          resolve();
+        });
+      });
+    } catch (err) {
+      console.warn(`[discovery] broadcast failed (non-fatal): ${String(err)}`);
+    }
   }
 }
 
