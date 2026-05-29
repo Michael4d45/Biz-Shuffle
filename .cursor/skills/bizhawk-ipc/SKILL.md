@@ -1,6 +1,6 @@
 ---
 name: bizhawk-ipc
-description: Debugs and implements BizHawk Lua TCP IPC in TSBunShuffle — BizhawkIpc client, server.lua, port file, Host & Play, and FakeLuaPeer tests. Use for emulator connection issues, SAVE/SWAP failures, or integration test flakiness.
+description: Debugs and implements BizHawk Lua TCP IPC in TSBunShuffle — BizhawkIpc client, server.lua, port file, desktop Join launch, and FakeLuaPeer tests. Use for emulator connection issues, SAVE/SWAP failures, or integration test flakiness.
 ---
 
 # BizHawk IPC

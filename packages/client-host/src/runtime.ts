@@ -134,7 +134,7 @@ export class ClientRuntime {
     this.connected = false;
   }
 
-  /** Poll until Lua IPC handshake completes (for tests and Host & Play). */
+  /** Poll until Lua IPC handshake completes (for tests and desktop Join). */
   async waitForBizhawkIpc(timeoutMs = 15_000): Promise<void> {
     if (!this.bipc) return;
     const deadline = Date.now() + timeoutMs;

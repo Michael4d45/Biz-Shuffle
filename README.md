@@ -25,15 +25,18 @@ bun run dev:server -- --data-dir ./data --host 127.0.0.1 --port 8080
 
 Open http://127.0.0.1:8080/
 
-**Desktop app** (Host, Join, Host & Play):
+**Desktop app** (Host, Join):
 
 ```bash
-bun run dev:desktop
+bun run build:admin && bun run dev:desktop
 ```
 
-BizHawk is downloaded on first Host & Play if needed (`%USERPROFILE%\BizShuffle\BizHawk\`). Override with `bizhawk_path` in config or `BIZSHUFFLE_EMUHAWK_PATH`.
+- **Host** — embedded server + browser admin (no BizHawk).
+- **Join** — player client + BizHawk (blocked until dependencies are satisfied).
 
-**CLI player** (against a running server):
+On Windows, install **BizHawk** and the **Visual C++ runtime** from the shell dependencies panel. BizHawk is installed under `%USERPROFILE%\BizShuffle\BizHawk\` (managed install). After install, `config.json` may contain `bizhawk_path` pointing at that `EmuHawk.exe` — paths outside the managed folder are not used.
+
+**CLI player** (WebSocket only; no BizHawk):
 
 ```bash
 bun run --filter @bizshuffle-bun/client-cli-app dev -- --join --name Player1 --server http://127.0.0.1:8080
@@ -51,5 +54,5 @@ bun test
 | ----------------- | ----------------------------------------------- |
 | `apps/server`     | Headless server binary                          |
 | `apps/desktop`    | Desktop host (Electrobun)                       |
-| `apps/client-cli` | Player CLI                                      |
+| `apps/client-cli` | Player CLI (WebSocket only; no BizHawk)         |
 | `packages/*`      | Protocol, domain, server/client hosts, admin UI |

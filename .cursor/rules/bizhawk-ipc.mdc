@@ -21,7 +21,7 @@ alwaysApply: false
 
 - `ClientRuntime` with `enableBizhawkIpc: true` starts `BizhawkIpc` on `start()`.
 - Tests: pass `luaPort` explicitly and `await runtime.waitForBizhawkIpc()` before triggering SAVE/SWAP.
-- `bizhawkLaunched: false` defers reconnect until `setBizhawkLaunched(true)` (Host & Play launch flow).
+- `bizhawkLaunched: false` defers reconnect until `setBizhawkLaunched(true)` (desktop Join after `DesktopEmulatorService.launch`).
 
 ## Testing without BizHawk
 
@@ -32,5 +32,5 @@ Use `FakeLuaPeer.listen()` from `packages/testing/src/fakes/fake-lua-peer.ts` â€
 | Symptom | Likely cause |
 |---------|----------------|
 | "IPC not ready" | SAVE/SWAP before handshake; missing `waitForBizhawkIpc` in tests |
-| Second Host & Play broken | Port file deleted on stop or BizHawk started before port file exists |
+| Second Join broken | Port file deleted on stop or BizHawk started before port file exists |
 | No valid save path | Missing `instance_id` on player before save-mode swap |

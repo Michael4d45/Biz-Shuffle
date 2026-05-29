@@ -41,7 +41,8 @@ Command names: `CommandName` in `packages/protocol/src/schemas.ts`.
 
 - No `POST /api/reset`
 - No player-name hashing for game assignment
-- Admin UI has no ROM upload widget (use `./roms/` or `POST /upload`)
+- Player `fullscreen_toggle` / `check_config` / `update_config` are ack-only stubs
+- `client-cli` does not launch BizHawk or run discovery
 
 ## Verification
 

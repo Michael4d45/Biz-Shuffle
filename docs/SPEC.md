@@ -1,6 +1,6 @@
 # BizShuffle2 — Product & Technical Specification
 
-Unified specification for **BizShuffle** (TSBunShuffle monorepo): a coordinated retro-gaming session host that manages multiple BizHawk emulator clients. This document merges architecture, protocol, UX/deployment, and game-mode/plugin coverage from this repository (`apps/`, `packages/`, `assets/server.lua`, runtime data dirs). Behavior described here reflects **implemented code**, not aspirational README text.
+Unified specification for **BizShuffle** (TSBunShuffle monorepo): a coordinated retro-gaming session host that manages multiple BizHawk emulator clients. This document merges architecture, protocol, UX/deployment, and game-mode/plugin coverage from this repository (`apps/`, `packages/`, `assets/server.lua`, runtime data dirs). Behavior described here reflects **implemented code** in this repo.
 
 ---
 
@@ -46,12 +46,13 @@ BizShuffle is a **single-session** coordination server for groups playing throug
 | Host-controlled flow   | Web admin + optional swap timer; players mostly passive after connect |
 | WebSocket + HTTP split | Real-time commands over WS; ROMs/saves/plugins over HTTP              |
 
-**Known README vs code gaps:**
+**Not implemented (or stubbed) — do not assume from older docs:**
 
-- `POST /api/reset` is **not** registered — use pause, clear saves, and player management instead.
-- Admin UI has **no ROM upload widget** — use `./roms/` on the host or `POST /upload`.
-- **Player-name hashing** for game assignment is **not** implemented; save mode uses first-free instance, shuffled round-robin, and preference-based random selection.
-- GUI client does **not** run interactive LAN discovery on startup (CLI `--no-gui` does).
+- `POST /api/reset` — use pause, clear saves, and player management instead.
+- **Player-name hashing** for game assignment — save mode uses first-free instance, shuffled round-robin, and preference-based random selection.
+- **`fullscreen_toggle`**, **`check_config`**, **`update_config`** on the player client — ack-only stubs (no Alt+Enter, no config probe yet).
+- **`discovery_enabled`**, **`discovery_timeout_seconds`**, **`auto_open_bizhawk`** in `config.json` — defaults are written but not read by current runtime code.
+- **`client-cli`** — WebSocket player only; no BizHawk launch, no LAN discovery UI.
 
 ---
 
@@ -62,10 +63,10 @@ BizShuffle is a **single-session** coordination server for groups playing throug
 | Component         | Artifact                                                         | Role                                                                                      |
 | ----------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | **Server**        | `apps/server`, `@bizshuffle-bun/server-host`                     | HTTP API, admin UI, ROM/save/plugin serving, WebSocket hub, swap scheduler, LAN discovery |
-| **Client**        | `apps/desktop`, `apps/client-cli`, `@bizshuffle-bun/client-host` | WebSocket client, downloads, BizHawk lifecycle, Lua IPC                                   |
+| **Client**        | `apps/desktop`, `apps/client-cli`, `@bizshuffle-bun/client-host` | WebSocket client, downloads, plugins; desktop also runs BizHawk + Lua IPC                 |
 | **BizHawk + Lua** | `EmuHawk` + `server.lua`                                         | Emulation, swap/save, plugin hooks; TCP to player client on localhost                     |
 | **Web admin**     | `@bizshuffle-bun/admin-ui`                                       | React SPA; REST + admin WebSocket                                                         |
-| **Desktop shell** | `apps/desktop` (Electrobun)                                      | Host / Join / Host & Play; embedded server; BizHawk auto-install                          |
+| **Desktop shell** | `apps/desktop` (Electrobun)                                      | **Host** (embedded server + admin), **Join** (BizHawk + player client); deps panel install |
 | **Plugins**       | `plugins/*`                                                      | Lua extensions; server is source of truth, clients sync files                             |
 
 ```mermaid
@@ -116,7 +117,7 @@ TSBunShuffle/
 
 | Process | Mechanism                                                                                                              |
 | ------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Server  | Async I/O on Bun; mutex/debounced persistence in `server-host`; per-WS handlers; swap scheduler; discovery broadcaster |
+| Server  | Async I/O on Bun; debounced persistence in `server-host`; per-WS handlers; swap scheduler; discovery broadcaster       |
 | Client  | WS reconnect loop; `Controller` handles swap/downloads; `BizhawkIpc` TCP client with ACK timeout                       |
 | Lua     | Single-threaded frame loop; synchronous IPC handling                                                                   |
 
@@ -145,7 +146,7 @@ TSBunShuffle/
 
 ### 4.3 BizHawk / `server.lua`
 
-**Owns:** ROM load (`./roms`), saves (`./saves`), plugin hooks (`on_init`, `on_frame`, `on_settings_changed`), TCP listener (default port **55355**).
+**Owns:** ROM load (`./roms`), saves (`./saves`), plugin hooks (`on_init`, `on_frame`, `on_settings_changed`), TCP listener on port from `lua_server_port.txt` (reserved from **55355**; Lua falls back to 55355 if the file is missing).
 
 **Exposes to plugins:** `SendCommand`, `csv_to_array`, `InstanceID`, `console.log`.
 
@@ -157,7 +158,7 @@ TSBunShuffle/
 
 ### 4.5 Desktop app (`apps/desktop`)
 
-**Owns:** Electrobun shell, embedded server for Host & Play, BizHawk download/launch, player client wiring.
+**Owns:** Electrobun shell, embedded server on **Host**, BizHawk install/launch on **Join**, dependencies panel (BizHawk + VC++ on Windows), player client wiring.
 
 **Does not own:** Session authority (delegates to embedded or remote server).
 
@@ -170,24 +171,25 @@ TSBunShuffle/
 | Persona    | Surfaces                        | Responsibilities                                       |
 | ---------- | ------------------------------- | ------------------------------------------------------ |
 | **Host**   | Browser `http://<host>:<port>/` | ROM catalog, session control, firewall, swaps, plugins |
-| **Player** | Desktop app or `client-cli`     | Connect, username, keep client + BizHawk running       |
+| **Player** | Desktop app or `client-cli`     | Connect with username; desktop keeps BizHawk + client running; CLI is WS-only (no emulator) |
 
 ### 5.2 Platform requirements
 
 | Platform              | Notes                                                                     |
 | --------------------- | ------------------------------------------------------------------------- |
-| **Windows** (primary) | BizHawk `EmuHawk.exe`; desktop app auto-downloads BizHawk when missing    |
-| **Linux** (secondary) | Headless server; client CLI where supported                               |
-| **Build**             | [Bun](https://bun.sh) 1.1+; `bun run build:admin`; Electrobun for desktop |
+| **Windows** (primary) | BizHawk `EmuHawk.exe`; desktop installs BizHawk via dependencies panel before Join |
+| **Linux** (secondary) | Headless server; desktop/client-host support Linux BizHawk zip when used             |
+| **Build**             | [Bun](https://bun.sh) 1.3+ (see `.bun-version`); `bun run build:admin`; Electrobun for desktop |
 
 ### 5.3 Installation flows
 
-**Desktop app (Host / Join / Host & Play):**
+**Desktop app (Host / Join):**
 
 1. Data directory defaults to `%USERPROFILE%\BizShuffle\` (or `~/BizShuffle`).
-2. **Host & Play** starts embedded server, reserves Lua IPC port, writes `lua_server_port.txt`, launches BizHawk with `server.lua`, connects player client.
-3. **Join** ensures BizHawk is installed, starts player client against a remote server URL.
-4. BizHawk is downloaded from the official release zip when not found (`ensureBizHawkReady`).
+2. **Host** — starts embedded `BizShuffleServer`, opens admin in a browser window. Does not launch BizHawk or the player client.
+3. **Join** — blocked until the dependencies panel reports BizHawk (and VC++ on Windows) OK. User installs via **Install BizHawk** / **Install VC++** (downloads official BizHawk zip into `{dataDir}/BizHawk`). Then: reserve Lua port → `lua_server_port.txt` → launch `EmuHawk` with `server.lua` → `ClientRuntime` connects to the server URL.
+4. `ensureBizHawkReady` can auto-install when called with `allowInstall` and no prior `playBlocked` gate — the desktop shell uses the dependencies panel instead for first-time setup.
+5. LAN discovery — shell refreshes discovered servers on load and every 5s; user can pick a server or type a URL.
 
 **Manual / headless:**
 
@@ -204,13 +206,13 @@ bun run --filter @bizshuffle-bun/client-cli-app dev -- --join --name Player1 --s
 | --------------------------- | --------------------------------------------- |
 | `server`                    | HTTP base; `ws://` normalized to `http://`    |
 | `name`                      | Player name for `hello`                       |
-| `bizhawk_path`              | Path to EmuHawk binary                        |
-| `discovery_enabled`         | `"true"` (CLI discovery may not gate on this) |
-| `discovery_timeout_seconds` | `"5"` in defaults; prompt path may use 10s    |
-| `multicast_address`         | `239.255.255.250:1900`                        |
-| `auto_open_bizhawk`         | `"true"`                                      |
+| `bizhawk_path`              | Cached path to managed `EmuHawk` under `{dataDir}/BizHawk` (external paths are cleared) |
+| `discovery_enabled`         | Default `"true"` — **not read** by current client runtime                               |
+| `discovery_timeout_seconds` | Default `"5"` — **not read** by current client runtime                                  |
+| `multicast_address`         | Default `239.255.255.250:1900` — **not read** by current client runtime                 |
+| `auto_open_bizhawk`         | Default `"true"` — **not read** by current client runtime                               |
 
-**LAN discovery:** Server broadcasts every 5s; client CLI lists servers or falls back to manual URL. **Desktop Join:** user enters URL in the shell window.
+**LAN discovery:** Server broadcasts every 5s on UDP multicast (+ loopback `127.0.0.1:1901`). **Desktop** shell lists discovered servers and accepts manual URLs. **`client-cli`** requires `--server`; no discovery.
 
 ### 5.5 Web admin workflows
 
@@ -218,13 +220,13 @@ bun run --filter @bizshuffle-bun/client-cli-app dev -- --join --name Player1 --s
 | ------- | ------------------------------------------------------------------------------------------------------ |
 | Session | Start/pause, do swap, auto swaps, better random, countdown, clear saves, mode, interval                |
 | Players | Add/remove, swap, random, message, fullscreen, config check, drag-drop instances (save mode)           |
-| Games   | Catalog, auto setup (`POST /api/mode/setup`), sync checkboxes, instances (save mode), open roms folder |
+| Games   | Catalog, ROM upload (`POST /upload`), auto setup, sync checkboxes, instances (save mode), open roms folder |
 | Plugins | Enable/disable, reload, settings modal, open plugins folder                                            |
 | Logs    | Local action log (200 entries)                                                                         |
 
 ### 5.6 Client UI
 
-Desktop shell: server URL, player name, Host / Join / Host & Play. BizHawk is launched automatically for Host & Play. ROM download progress is logged to the client process output.
+Desktop shell: bind host/port (Host), server URL + player name (Join), dependencies panel, discovered-server list. BizHawk launches only on **Join** after dependencies pass. Desktop logs: `%USERPROFILE%\BizShuffle\logs\` (see `apps/desktop/src/bun/log.ts`).
 
 ### 5.7 Session lifecycle
 
@@ -289,9 +291,9 @@ sequenceDiagram
 | Clear saves   | `clear_saves`       | Wipe local saves                                                 |
 | Request save  | `request_save`      | Payload: `instance_id`                                           |
 | Plugin reload | `plugin_reload`     | Payload: `plugin_name`                                           |
-| Fullscreen    | `fullscreen_toggle` | Alt+Enter (Windows)                                              |
-| Check config  | `check_config`      | Payload: `config_keys[]`                                         |
-| Update config | `update_config`     | Payload: `config_updates` (JSON string)                          |
+| Fullscreen    | `fullscreen_toggle` | Player client **ack stub** (not implemented)                     |
+| Check config  | `check_config`      | Player client **ack stub**; server can send via admin API        |
+| Update config | `update_config`     | Player client **ack stub**                                       |
 | State update  | `state_update`      | Plugin settings to players; `updated_at` to admins               |
 
 ### 6.5 Client → server messages
@@ -563,14 +565,15 @@ GitHub Actions workflows under `.github/workflows/` (lint, test, release as conf
 | --------------------- | ----------------------------------------------------------------------------- |
 | Cannot find server    | Same LAN; manual `http://HOST:8080`; firewall TCP 8080; server `0.0.0.0` bind |
 | Discovery empty       | Multicast blocked; use manual URL; server discovery logs                      |
-| Admin UI broken       | Run server from dir containing `web/`                                         |
+| Admin UI broken       | Run `bun run build:admin`; server serves `packages/server-host/priv/static`   |
 | Client disconnected   | `curl http://host:port/state.json`; verify WS URL                             |
-| BizHawk not launching | `bizhawk_path` in `config.json`; re-run Host & Play or `ensureBizHawkReady`   |
+| BizHawk not launching | Install/update via desktop dependencies panel; check `{dataDir}/BizHawk`      |
+| Join button disabled  | Install BizHawk + VC++ (Windows) from dependencies panel                    |
 | Games not loading     | ROMs in host `./roms/`; catalog; sync mode game checkboxes                    |
 | Save swap failures    | `file_state` stuck `pending`; client logs; file locks on Windows              |
 | Plugin not applied    | Admin status; client plugin sync logs                                         |
 
-**Logs:** Client `logs/` (with `-v`); server stdout; admin Logs panel.
+**Logs:** Desktop `%USERPROFILE%\BizShuffle\logs\`; server stdout; admin Logs panel (local UI log, not server file tail).
 
 **Recovery:** Delete/edit `config.json` or `state.json` while stopped.
 
